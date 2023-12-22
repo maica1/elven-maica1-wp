@@ -1,0 +1,16 @@
+- name: Install wordpress blog
+  hosts: all
+  gather_facts: false
+
+  roles:
+  - { role: install_packages, vars: { package_list: ['nginx'] } }
+
+  tasks: 
+
+
+  # files in /etc/nginx/conf.d
+  # blog.conf
+
+  # src in /var/www/html/blog
+
+  # start and enable nginx

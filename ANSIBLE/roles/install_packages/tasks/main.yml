@@ -1,0 +1,15 @@
+---
+# tasks file for install_packages
+- name: Update cache for ubuntu
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install packages from the CentOS repo
+  package:
+      name: "{{ package }}"
+      state: present
+  loop: "{{ package_list }}"
+  loop_control:
+    loop_var: package
+

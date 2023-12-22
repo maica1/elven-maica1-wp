@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+    - name: "Include maica1.install_packages"
+      include_role:
+        name: "maica1.install_packages"

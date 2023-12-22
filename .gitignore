@@ -34,3 +34,5 @@ override.tf.json
 terraform.rc
 
 aws/
+
+ANSIBLE/.ansible_venv

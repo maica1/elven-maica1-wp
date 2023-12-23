@@ -1,0 +1,12 @@
+---
+# tasks file for create_dirs
+- name: Create dir
+  ansible.builtin.file:
+    path: "{{ directory }}"
+    owner: "{{ USER | default(ansible_user_id) or default(omit) }}"
+    group: "{{ GROUP | default(omit) }}"
+    mode: "{{ MODE | default(omit) }}"
+    state: directory
+  loop: "{{ DIRS | default(['/tmp/temp']) }}"
+  loop_control:
+    loop_var: directory

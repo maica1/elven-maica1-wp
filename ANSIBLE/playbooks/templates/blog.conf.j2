@@ -1,0 +1,11 @@
+server {
+
+  listen {{ SERVER_PORT | default(80) }};
+  server_name {{ SERVER_NAME | default('_') }};
+
+  root {{ ROOT_DIR | default('/var/www/html/') }};
+  index index.html
+  access_log {{ LOG_DIR | default('/var/log/nginx/') }}access.log
+  error_log {{ LOG_DIR | default('/var/log/nginx/') }}error.log
+   
+}

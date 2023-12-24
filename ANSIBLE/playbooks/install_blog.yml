@@ -4,13 +4,35 @@
 
   roles:
   - { role: install_packages, vars: { package_list: ['nginx'] } }
+  - { role: create_dirs,
+      vars: {
+        DIRS: [ /var/log/nginx/, /var/www/html/],
+        USER: 'nginx',
+        GROUP: 'nginx',
+        MODE: '0644'
+      }
+    }
+  
 
   tasks: 
 
+  - name: Create blog.conf file
+    ansible.builtin.template:
+      src: blog.conf.j2
+      dest: /etc/nginx/conf.d/blog.conf
+  
+  - name: Create index file
+    ansible.builtin.template:
+      src: index.html.j2
+      dest: /var/www/html/blog/index.html
 
-  # files in /etc/nginx/conf.d
-  # blog.conf
+  - name: Start and enable nginx
+    ansible.builtin.service:
+      name: nginx
+      state: started
+      enabled: true
 
-  # src in /var/www/html/blog
-
+  
+  # remove server from /etc/nginx/nginx.conf
   # start and enable nginx
+

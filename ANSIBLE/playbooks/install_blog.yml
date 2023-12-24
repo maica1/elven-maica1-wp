@@ -1,18 +1,49 @@
-- name: Install wordpress blog
-  hosts: all
+- hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../vault/aws_credentials.yml
+  tasks:
+  # ansible-galaxy collection install amazon.aws community.general
+  - name: "launching ec2 instance on AWS"
+    amazon.aws.ec2_instance:
+      key_name: "elven-blog-key"
+      instance_type: t2.micro
+      image_id: ami-0424a16d0e63b113b
+      wait: yes
+      exact_count: 1
+      tags:
+        Name: "vpc-blog-elven"
+      state: "{{ DESTROY is not defined | ternary('running','terminated') }}"
+      region: "sa-east-1"
+      security_group : sg-0baec922c94e28782
+      vpc_subnet_id: subnet-0e1c3bd6c7183df05
+      network:
+        assign_public_ip: true
+        delete_on_termination: true
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+    register: ec2
+
+  - name: "Add new Instance to Host group"
+    ansible.builtin.add_host:
+       hostname: "{{ item.network_interfaces[0].association.public_dns_name }}"
+       groupname: webserver
+    loop: "{{ ec2.instances }}"
+
+  - name: "Wait for SSH in Instance"
+    ansible.builtin.wait_for:
+             host: "{{ item.network_interfaces[0].association.public_dns_name }}"
+             port: 22
+             state: started
+    loop: "{{ ec2.instances }}"
+
+- name: Install wordpress blog
+  hosts: webserver
+  gather_facts: true
 
   roles:
-  - { role: install_packages, vars: { package_list: ['nginx'] } }
-  - { role: create_dirs,
-      vars: {
-        DIRS: [ /var/log/nginx/, /var/www/html/],
-        USER: 'nginx',
-        GROUP: 'nginx',
-        MODE: '0644'
-      }
-    }
-  
+  - { role: install_packages, package_list: ['nginx']}
+  - { role: create_dirs, DIRS: [ /var/log/nginx/, /var/www/html/blog], USER: 'nginx', GROUP: 'nginx', MODE: '0644'}
 
   tasks: 
 

@@ -72,6 +72,11 @@
       state: started
       enabled: true
 
+  - name: Install php
+    ansible.builtin.package:
+      name: php
+      state: present
+
   
   # remove server from /etc/nginx/nginx.conf
   # start and enable nginx

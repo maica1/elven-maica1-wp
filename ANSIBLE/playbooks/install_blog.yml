@@ -29,6 +29,7 @@
        hostname: "{{ item.network_interfaces[0].association.public_dns_name }}"
        groupname: webserver
     loop: "{{ ec2.instances }}"
+    when: &DESTROY DESTROY is not defined
 
   - name: "Wait for SSH in Instance"
     ansible.builtin.wait_for:
@@ -36,24 +37,32 @@
              port: 22
              state: started
     loop: "{{ ec2.instances }}"
+    when: *DESTROY
 
 - name: Install wordpress blog
   hosts: webserver
   gather_facts: true
 
+  vars:
+   ROOT_DIR: /var/www/html/blog
+   LOG_DIR: /var/log/nginx/
   roles:
   - { role: install_packages, package_list: ['nginx']}
-  - { role: create_dirs, DIRS: [ /var/log/nginx/, /var/www/html/blog], USER: 'nginx', GROUP: 'nginx', MODE: '0644'}
+  - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
 
   tasks: 
 
   - name: Create blog.conf file
-    ansible.builtin.template:
+    ansible.builtin.template: &nginx_permission
       src: blog.conf.j2
       dest: /etc/nginx/conf.d/blog.conf
+      owner: nginx
+      group: nginx
+      mode: 0644
   
   - name: Create index file
     ansible.builtin.template:
+      <<: *nginx_permission
       src: index.html.j2
       dest: /var/www/html/blog/index.html
 

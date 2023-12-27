@@ -4,7 +4,7 @@
   vars_files:
     - ../vault/aws_credentials.yml
   tasks:
-  # ansible-galaxy collection install amazon.aws community.general
+  # ansible-galaxy collection install amazon.aws community.general ansible.posix
   - name: "launching ec2 instance on AWS"
     amazon.aws.ec2_instance:
       key_name: "elven-blog-key"
@@ -40,8 +40,6 @@
     loop: "{{ ec2.instances }}"
     when: *DESTROY
 
-  # Maybe set ip as a fact to reuse whenever
-
 - name: ">>> INSTALL WORDPRESS BLOG <<<"
   hosts: webserver
   gather_facts: true
@@ -58,6 +56,14 @@
   - { role: install_packages }
   - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
   pre_tasks:
+
+    - name: Set instance ip as fact
+      ansible.builtin.set_fact:
+        INSTANCE_FQDN: "{{ inventory_hostname }}"
+        INSTANCE_IP: "{{ ansible_default_ipv4.address }}"
+      delegate_facts: true
+      delegate_to: localhost
+
     - name: Download mysql repo
       ansible.builtin.command:
         cmd: wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
@@ -72,16 +78,9 @@
     - name: add mysql repo
       ansible.builtin.yum:
         name: /tmp/mysql57-community-release-el7-11.noarch.rpm 
-        # disable_gpg_check: true
         update_cache: true
         state: present
       become: true
-      # notify: clean_pkg_cache
-
-  # handlers:
-
-  # - name: clean_pkg_cache
-  #   ansible.builtin.command: yum clean all
 
   tasks: 
 
@@ -93,11 +92,11 @@
       group: nginx
       mode: 0644
   
-  # - name: Create index file
-  #   ansible.builtin.template:
-  #     <<: *nginx_permission
-  #     src: index.html.j2
-  #     dest: /var/www/html/blog/index.html
+  - name: Create index file
+    ansible.builtin.template:
+      <<: *nginx_permission
+      src: index.html.j2
+      dest: /var/www/html/blog/hello_world.html
 
   - name: Substitute user and group on php config
     ansible.builtin.lineinfile:
@@ -112,28 +111,30 @@
 
   - name: download and extract wordpress
     ansible.builtin.unarchive:
+      <<: *nginx_permission
       src: https://br.wordpress.org/latest-pt_BR.tar.gz
-      dest: /var/www/html/blog/index.php
-      owner: nginx
-      group: nginx
-      mode: 0744
+      dest: /var/www/html/blog/
       validate_certs: false
       remote_src: yes
-      creates: /var/www/html/blog/
+      creates: /var/www/html/blog/index.php
+    register: downloaded_wp
   
   - name: rename wordpress dir
     ansible.builtin.copy:
+      <<: *nginx_permission
       src: /var/www/html/wordpress/
       dest: /var/www/html/blog
       owner: nginx
       group: nginx
       mode: 0744      
       remote_src: yes
+    when: downloaded_wp is not skipped
 
   - name: remove old wordpress dir
     ansible.builtin.file:
       path: /var/www/html/wordpress
       state: absent
+    when: downloaded_wp is not skipped
 
   - name: Start and enable services
     ansible.builtin.service:
@@ -146,21 +147,19 @@
     loop_control:
       loop_var: package
 
-# - name: ">>> VALIDATE WEBPAGE ACCESS <<<"
-#   hosts: localhost
-#   gather_facts: false
+- name: ">>> VALIDATE WEBPAGE ACCESS <<<"
+  hosts: localhost
+  gather_facts: false
 
-#   tasks:
+  tasks:
 
-  # - name: Access homepage
-  #   ansible.builtin.uri:
-  #     url: "http://{{ item.network_interfaces[0].association.public_ip }}/info.php" 
-  #   loop: "{{ ec2.instances }}"
-    # register: access
-    # failed_when: access is failed or "'PHP Version' not in access.results.content"
-#      until: "'Hello World! This is your new blog.' in response.content"
-#  retries: 10
-#  delay: 5
+  - name: Access homepage
+    ansible.builtin.uri:
+      url: "http://{{ hostvars['localhost']['INSTANCE_FQDN'] }}/hello_world.html" 
+    register: access
+    until: "access.status == 200"
+    retries: 10
+    delay: 5
 
 
 
@@ -189,6 +188,3 @@
       # Need to create a task to create the sgs 
       vpc_security_group_ids : [sg-0704ea111bfe5fca0]
     register: aws_rds
-  
-  - name: Show rds info
-    debug: msg="{{ aws_rds }}"

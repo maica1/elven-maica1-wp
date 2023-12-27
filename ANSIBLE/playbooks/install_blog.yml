@@ -188,3 +188,22 @@
       # Need to create a task to create the sgs 
       vpc_security_group_ids : [sg-0704ea111bfe5fca0]
     register: aws_rds
+
+  - name: Set RDS addresses as fact
+    ansible.builtin.set_fact:
+      RDS_ENDPOINT: "{{ aws_rds.endpoint.address }}"
+    delegate_facts: true
+    delegate_to: localhost    
+
+- name: ">>> CONFIGURE WORDPRESS <<<"
+  hosts: webserver
+  gather_facts: true
+  vars_files:
+    - ../vault/aws_credentials.yml  
+  tasks:
+
+  - name: Create wp config file
+    ansible.builtin.template:
+      <<: *nginx_permission
+      src: wp-config.php.j2
+      dest: /var/www/html/blog/wp-config.php

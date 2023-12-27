@@ -1,4 +1,5 @@
-- hosts: localhost
+- name: ">>> CREATE EC2 INSTANCE <<<"
+  hosts: localhost
   gather_facts: false
   vars_files:
     - ../vault/aws_credentials.yml
@@ -39,16 +40,48 @@
     loop: "{{ ec2.instances }}"
     when: *DESTROY
 
-- name: Install wordpress blog
+  # Maybe set ip as a fact to reuse whenever
+
+- name: ">>> INSTALL WORDPRESS BLOG <<<"
   hosts: webserver
   gather_facts: true
 
   vars:
    ROOT_DIR: /var/www/html/blog
    LOG_DIR: /var/log/nginx/
+   PACKAGE_LIST:
+   - nginx
+   - php
+   - mysql
+   - php8.2-mysqlnd
   roles:
-  - { role: install_packages, package_list: ['nginx']}
+  - { role: install_packages }
   - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+  pre_tasks:
+    - name: Download mysql repo
+      ansible.builtin.command:
+        cmd: wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+        chdir: /tmp/
+        creates: /tmp/mysql57-community-release-el7-11.noarch.rpm
+
+    - name: Import mysql repo key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022 
+
+    - name: add mysql repo
+      ansible.builtin.yum:
+        name: /tmp/mysql57-community-release-el7-11.noarch.rpm 
+        # disable_gpg_check: true
+        update_cache: true
+        state: present
+      become: true
+      # notify: clean_pkg_cache
+
+  # handlers:
+
+  # - name: clean_pkg_cache
+  #   ansible.builtin.command: yum clean all
 
   tasks: 
 
@@ -60,24 +93,102 @@
       group: nginx
       mode: 0644
   
-  - name: Create index file
-    ansible.builtin.template:
-      <<: *nginx_permission
-      src: index.html.j2
-      dest: /var/www/html/blog/index.html
+  # - name: Create index file
+  #   ansible.builtin.template:
+  #     <<: *nginx_permission
+  #     src: index.html.j2
+  #     dest: /var/www/html/blog/index.html
 
-  - name: Start and enable nginx
+  - name: Substitute user and group on php config
+    ansible.builtin.lineinfile:
+      path: /etc/php-fpm.d/www.conf
+      regexp: "{{ item }} =.*"
+      line: "{{ item }} = nginx"
+    loop:
+    - user
+    - group
+    # - listen.owner
+    # - listen.group
+
+  - name: download and extract wordpress
+    ansible.builtin.unarchive:
+      src: https://br.wordpress.org/latest-pt_BR.tar.gz
+      dest: /var/www/html/blog/index.php
+      owner: nginx
+      group: nginx
+      mode: 0744
+      validate_certs: false
+      remote_src: yes
+      creates: /var/www/html/blog/
+  
+  - name: rename wordpress dir
+    ansible.builtin.copy:
+      src: /var/www/html/wordpress/
+      dest: /var/www/html/blog
+      owner: nginx
+      group: nginx
+      mode: 0744      
+      remote_src: yes
+
+  - name: remove old wordpress dir
+    ansible.builtin.file:
+      path: /var/www/html/wordpress
+      state: absent
+
+  - name: Start and enable services
     ansible.builtin.service:
-      name: nginx
+      name: "{{ package }}"
       state: started
       enabled: true
+    loop: 
+    - nginx
+    - php-fpm
+    loop_control:
+      loop_var: package
 
-  - name: Install php
-    ansible.builtin.package:
-      name: php
-      state: present
+# - name: ">>> VALIDATE WEBPAGE ACCESS <<<"
+#   hosts: localhost
+#   gather_facts: false
 
+#   tasks:
+
+  # - name: Access homepage
+  #   ansible.builtin.uri:
+  #     url: "http://{{ item.network_interfaces[0].association.public_ip }}/info.php" 
+  #   loop: "{{ ec2.instances }}"
+    # register: access
+    # failed_when: access is failed or "'PHP Version' not in access.results.content"
+#      until: "'Hello World! This is your new blog.' in response.content"
+#  retries: 10
+#  delay: 5
+
+
+
+- name: ">>> CREATE RDS INSTANCE FOR WORDPRESS <<<"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../vault/aws_credentials.yml  
+
+  tasks:
+
+  - name: Create wordpress db
+    amazon.aws.rds_instance:
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+      region: "sa-east-1"
+      az: sa-east-1c
+      engine: mysql
+      engine_version: 5.7.44
+      instance_type: db.t3.micro
+      db_instance_identifier: blog
+      username:  "{{ rds_user }}"
+      password: "{{ rds_password }}"
+      allocated_storage: 20
+      storage_type: gp3
+      # Need to create a task to create the sgs 
+      vpc_security_group_ids : [sg-0704ea111bfe5fca0]
+    register: aws_rds
   
-  # remove server from /etc/nginx/nginx.conf
-  # start and enable nginx
-
+  - name: Show rds info
+    debug: msg="{{ aws_rds }}"

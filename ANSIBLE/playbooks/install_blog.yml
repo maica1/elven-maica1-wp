@@ -79,6 +79,7 @@
       ansible.builtin.yum:
         name: /tmp/mysql57-community-release-el7-11.noarch.rpm 
         update_cache: true
+        disable_gpg_check: yes
         state: present
       become: true
 
@@ -90,7 +91,7 @@
       dest: /etc/nginx/conf.d/blog.conf
       owner: nginx
       group: nginx
-      mode: 0644
+      mode: 0744
   
   - name: Create index file
     ansible.builtin.template:
@@ -113,7 +114,7 @@
     ansible.builtin.unarchive:
       <<: *nginx_permission
       src: https://br.wordpress.org/latest-pt_BR.tar.gz
-      dest: /var/www/html/blog/
+      dest: /var/www/html/
       validate_certs: false
       remote_src: yes
       creates: /var/www/html/blog/index.php
@@ -124,9 +125,6 @@
       <<: *nginx_permission
       src: /var/www/html/wordpress/
       dest: /var/www/html/blog
-      owner: nginx
-      group: nginx
-      mode: 0744      
       remote_src: yes
     when: downloaded_wp is not skipped
 
@@ -184,7 +182,7 @@
       username:  "{{ rds_user }}"
       password: "{{ rds_password }}"
       allocated_storage: 20
-      storage_type: gp3
+      storage_type: gp2
       # Need to create a task to create the sgs 
       vpc_security_group_ids : [sg-0704ea111bfe5fca0]
     register: aws_rds

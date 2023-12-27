@@ -9,7 +9,7 @@
   package:
       name: "{{ package }}"
       state: present
-  loop: "{{ package_list }}"
+  loop: "{{ PACKAGE_LIST }}"
   loop_control:
     loop_var: package
 

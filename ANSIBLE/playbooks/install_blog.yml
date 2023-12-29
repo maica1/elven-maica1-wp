@@ -1,38 +1,207 @@
-- name: Install wordpress blog
-  hosts: all
+- name: ">>> CREATE EC2 INSTANCE <<<"
+  hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../vault/aws_credentials.yml
+  tasks:
+  # ansible-galaxy collection install amazon.aws community.general ansible.posix
+  - name: "launching ec2 instance on AWS"
+    amazon.aws.ec2_instance:
+      key_name: "elven-blog-key"
+      instance_type: t2.micro
+      image_id: ami-0424a16d0e63b113b
+      wait: yes
+      exact_count: 1
+      tags:
+        Name: "vpc-blog-elven"
+      state: "{{ DESTROY is not defined | ternary('running','terminated') }}"
+      region: "sa-east-1"
+      security_group : sg-0baec922c94e28782
+      vpc_subnet_id: subnet-0e1c3bd6c7183df05
+      network:
+        assign_public_ip: true
+        delete_on_termination: true
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+    register: ec2
 
+  - name: "Add new Instance to Host group"
+    ansible.builtin.add_host:
+       hostname: "{{ item.network_interfaces[0].association.public_dns_name }}"
+       groupname: webserver
+    loop: "{{ ec2.instances }}"
+    when: &DESTROY DESTROY is not defined
+
+  - name: "Wait for SSH in Instance"
+    ansible.builtin.wait_for:
+             host: "{{ item.network_interfaces[0].association.public_dns_name }}"
+             port: 22
+             state: started
+    loop: "{{ ec2.instances }}"
+    when: *DESTROY
+
+- name: ">>> INSTALL WORDPRESS BLOG <<<"
+  hosts: webserver
+  gather_facts: true
+
+  vars:
+   ROOT_DIR: /var/www/html/blog
+   LOG_DIR: /var/log/nginx/
+   PACKAGE_LIST:
+   - nginx
+   - php
+   - mysql
+   - php8.2-mysqlnd
   roles:
-  - { role: install_packages, vars: { package_list: ['nginx'] } }
-  - { role: create_dirs,
-      vars: {
-        DIRS: [ /var/log/nginx/, /var/www/html/],
-        USER: 'nginx',
-        GROUP: 'nginx',
-        MODE: '0644'
-      }
-    }
-  
+  - { role: install_packages }
+  - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+  pre_tasks:
+
+    - name: Set instance ip as fact
+      ansible.builtin.set_fact:
+        INSTANCE_FQDN: "{{ inventory_hostname }}"
+        INSTANCE_IP: "{{ ansible_default_ipv4.address }}"
+      delegate_facts: true
+      delegate_to: localhost
+
+    - name: Download mysql repo
+      ansible.builtin.command:
+        cmd: wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+        chdir: /tmp/
+        creates: /tmp/mysql57-community-release-el7-11.noarch.rpm
+
+    - name: Import mysql repo key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022 
+
+    - name: add mysql repo
+      ansible.builtin.yum:
+        name: /tmp/mysql57-community-release-el7-11.noarch.rpm 
+        update_cache: true
+        disable_gpg_check: yes
+        state: present
+      become: true
 
   tasks: 
 
   - name: Create blog.conf file
-    ansible.builtin.template:
+    ansible.builtin.template: &nginx_permission
       src: blog.conf.j2
       dest: /etc/nginx/conf.d/blog.conf
+      owner: nginx
+      group: nginx
+      mode: 0744
   
   - name: Create index file
     ansible.builtin.template:
+      <<: *nginx_permission
       src: index.html.j2
-      dest: /var/www/html/blog/index.html
+      dest: /var/www/html/blog/hello_world.html
 
-  - name: Start and enable nginx
+  - name: Substitute user and group on php config
+    ansible.builtin.lineinfile:
+      path: /etc/php-fpm.d/www.conf
+      regexp: "{{ item }} =.*"
+      line: "{{ item }} = nginx"
+    loop:
+    - user
+    - group
+    # - listen.owner
+    # - listen.group
+
+  - name: download and extract wordpress
+    ansible.builtin.unarchive:
+      <<: *nginx_permission
+      src: https://br.wordpress.org/latest-pt_BR.tar.gz
+      dest: /var/www/html/
+      validate_certs: false
+      remote_src: yes
+      creates: /var/www/html/blog/index.php
+    register: downloaded_wp
+  
+  - name: rename wordpress dir
+    ansible.builtin.copy:
+      <<: *nginx_permission
+      src: /var/www/html/wordpress/
+      dest: /var/www/html/blog
+      remote_src: yes
+    when: downloaded_wp is not skipped
+
+  - name: remove old wordpress dir
+    ansible.builtin.file:
+      path: /var/www/html/wordpress
+      state: absent
+    when: downloaded_wp is not skipped
+
+  - name: Start and enable services
     ansible.builtin.service:
-      name: nginx
+      name: "{{ package }}"
       state: started
       enabled: true
+    loop: 
+    - nginx
+    - php-fpm
+    loop_control:
+      loop_var: package
 
-  
-  # remove server from /etc/nginx/nginx.conf
-  # start and enable nginx
+- name: ">>> VALIDATE WEBPAGE ACCESS <<<"
+  hosts: localhost
+  gather_facts: false
 
+  tasks:
+
+  - name: Access homepage
+    ansible.builtin.uri:
+      url: "http://{{ hostvars['localhost']['INSTANCE_FQDN'] }}/hello_world.html" 
+    register: access
+    until: "access.status == 200"
+    retries: 10
+    delay: 5
+
+
+
+- name: ">>> CREATE RDS INSTANCE FOR WORDPRESS <<<"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../vault/aws_credentials.yml  
+
+  tasks:
+
+  - name: Create wordpress db
+    amazon.aws.rds_instance:
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+      region: "sa-east-1"
+      az: sa-east-1c
+      engine: mysql
+      engine_version: 5.7.44
+      instance_type: db.t3.micro
+      db_instance_identifier: blog
+      username:  "{{ rds_user }}"
+      password: "{{ rds_password }}"
+      allocated_storage: 20
+      storage_type: gp2
+      # Need to create a task to create the sgs 
+      vpc_security_group_ids : [sg-0704ea111bfe5fca0]
+    register: aws_rds
+
+  - name: Set RDS addresses as fact
+    ansible.builtin.set_fact:
+      RDS_ENDPOINT: "{{ aws_rds.endpoint.address }}"
+    delegate_facts: true
+    delegate_to: localhost    
+
+- name: ">>> CONFIGURE WORDPRESS <<<"
+  hosts: webserver
+  gather_facts: true
+  vars_files:
+    - ../vault/aws_credentials.yml  
+  tasks:
+
+  - name: Create wp config file
+    ansible.builtin.template:
+      <<: *nginx_permission
+      src: wp-config.php.j2
+      dest: /var/www/html/blog/wp-config.php

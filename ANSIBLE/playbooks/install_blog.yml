@@ -172,7 +172,18 @@
         echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
         /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
         echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
-      
+
+  - name: Configure memcache use
+    ansible.builtin.lineinfile:
+      path: /etc/php.ini
+      regexp: "{{ item.0 }} =.*"
+      line: "{{ item.0 }} = {{ item.1 }}"
+      insertafter: "[Session]"
+    loop:
+    - ["session.save_handler","memcached"]
+    - ["session.save_path", "blog-study-maica1-sessoes.ntavis.cfg.sae1.cache.amazonaws.com:11211"]
+
+        
   - name: Start and enable services
     ansible.builtin.service:
       name: "{{ package }}"

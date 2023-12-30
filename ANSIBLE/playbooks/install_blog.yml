@@ -65,7 +65,7 @@
 #   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
   roles:
   - { role: install_packages }
-  - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+  - { role: create_dirs, DIRS: [ "/uploads", "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
   pre_tasks:
 
     - name: Set instance ip as fact
@@ -93,6 +93,14 @@
         disable_gpg_check: yes
         state: present
       become: true
+
+    - name: Mount EFS dir
+      ansible.posix.mount:
+        src: fs-095e8ec4179964268:/
+        path: /uploads
+        opts: tls,defaults,nofail
+        state: mounted
+        fstype: efs
 
   tasks: 
 

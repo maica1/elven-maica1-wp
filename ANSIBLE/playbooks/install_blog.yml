@@ -48,13 +48,24 @@
    ROOT_DIR: /var/www/html/blog
    LOG_DIR: /var/log/nginx/
    PACKAGE_LIST:
+   - gcc
    - nginx
    - php
+   - php-devel
+   - php-pear
    - mysql
    - php8.2-mysqlnd
+   - memcached
+   - memcached-devel
+   - libmemcached-awesome
+   - libmemcached-awesome-devel 
+   - cyrus-sasl-devel
+   - libevent-devel 
+   - amazon-efs-utils
+#   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
   roles:
   - { role: install_packages }
-  - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+  - { role: create_dirs, DIRS: [ "/uploads", "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
   pre_tasks:
 
     - name: Set instance ip as fact
@@ -85,6 +96,8 @@
 
   tasks: 
 
+
+  
   - name: Create blog.conf file
     ansible.builtin.template: &nginx_permission
       src: blog.conf.j2
@@ -92,6 +105,21 @@
       owner: nginx
       group: nginx
       mode: 0744
+ 
+  - name: Mount EFS dir
+    ansible.posix.mount:
+      src: fs-095e8ec4179964268:/
+      path: /uploads
+      opts: tls,defaults,nofail
+      state: mounted
+      fstype: efs
+
+  - name: Create a symbolic link
+    ansible.builtin.file:
+      <<: *nginx_permission
+      src: /uploads
+      dest: /var/www/html/blog/uploads
+      state: link      
   
   - name: Create index file
     ansible.builtin.template:
@@ -134,6 +162,28 @@
       state: absent
     when: downloaded_wp is not skipped
 
+  - name: Configure memcached lib for php
+    ansible.builtin.shell:
+      cmd: |
+        /usr/bin/yes 'no' | pecl install igbinary
+        echo 'extension=igbinary.so' > /etc/php.d/30-igbinary.ini
+
+        /usr/bin/yes 'no' | pecl install msgpack
+        echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
+        /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
+        echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
+
+  - name: Configure memcache use
+    ansible.builtin.lineinfile:
+      path: /etc/php.ini
+      regexp: "{{ item.0 }} =.*"
+      line: "{{ item.0 }} = {{ item.1 }}"
+      insertafter: "[Session]"
+    loop:
+    - ["session.save_handler","memcached"]
+    - ["session.save_path", "blog-study-maica1-sessoes.ntavis.cfg.sae1.cache.amazonaws.com:11211"]
+
+        
   - name: Start and enable services
     ansible.builtin.service:
       name: "{{ package }}"
@@ -174,17 +224,22 @@
       aws_access_key: "{{ accesskey }}"
       aws_secret_key: "{{ secretkey }}"
       region: "sa-east-1"
-      az: sa-east-1c
+      # az: sa-east-1c
+      multi_az: true
       engine: mysql
       engine_version: 5.7.44
       instance_type: db.t3.micro
       db_instance_identifier: blog
       username:  "{{ rds_user }}"
       password: "{{ rds_password }}"
+      publicly_accessible: false
       allocated_storage: 20
       storage_type: gp2
+      backup_retention_period: 0
       # Need to create a task to create the sgs 
       vpc_security_group_ids : [sg-0704ea111bfe5fca0]
+      auto_minor_version_upgrade: true
+      apply_immediately: true
     register: aws_rds
 
   - name: Set RDS addresses as fact

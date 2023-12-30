@@ -32,7 +32,7 @@ define( 'DB_PASSWORD', '{{ rds_password | default("elfos123!") }}' );
 define( 'DB_HOST', '{{ hostvars["localhost"]["RDS_ENDPOINT"] | default("localhost")}}' );
 
 /** Charset do banco de dados a ser usado na criação das tabelas. */
-define( 'DB_CHARSET', 'utf8' );
+define( 'DB_CHARSET', 'utf8mb4' );
 
 /** O tipo de Collate do banco de dados. Não altere isso se tiver dúvidas. */
 define( 'DB_COLLATE', '' );

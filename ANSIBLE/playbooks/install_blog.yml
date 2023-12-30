@@ -48,10 +48,21 @@
    ROOT_DIR: /var/www/html/blog
    LOG_DIR: /var/log/nginx/
    PACKAGE_LIST:
+   - gcc
    - nginx
    - php
+   - php-devel
+   - php-pear
    - mysql
    - php8.2-mysqlnd
+   - memcached
+   - memcached-devel
+   - libmemcached-awesome
+   - libmemcached-awesome-devel 
+   - cyrus-sasl-devel
+   - libevent-devel 
+   - amazon-efs-utils
+#   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
   roles:
   - { role: install_packages }
   - { role: create_dirs, DIRS: [ "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
@@ -134,6 +145,17 @@
       state: absent
     when: downloaded_wp is not skipped
 
+  - name: Configure memcached lib for php
+    ansible.builtin.shell:
+      cmd: |
+        /usr/bin/yes 'no' | pecl install igbinary
+        echo 'extension=igbinary.so' > /etc/php.d/30-igbinary.ini
+
+        /usr/bin/yes 'no' | pecl install msgpack
+        echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
+        /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
+        echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
+        
   - name: Start and enable services
     ansible.builtin.service:
       name: "{{ package }}"

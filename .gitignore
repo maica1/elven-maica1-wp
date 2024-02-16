@@ -36,6 +36,7 @@ terraform.rc
 aws/
 
 ANSIBLE/.ansible_venv
+ANSIBLE/collections
 ANSIBLE/collections/ansible_collections/amazon.aws-7.1.0.info/GALAXY.yml
 ANSIBLE/collections/ansible_collections/community/general/.gitignore
 ANSIBLE/collections/ansible_collections/community/general/CHANGELOG.rst

@@ -21,6 +21,13 @@ variable "vpc_subnet_priv_az_b_cidr" {
 variable "ssh_key_name" {
   default = "New windows key"
 }
-
-variable "provisioner_public_ip" {
+variable "aws_access_key"{
+  default = "${var.aws_access_key}"
 }
+variable "aws_secret_key"{
+  default = "${var.aws_secret_key}"
+
+}
+
+# variable "provisioner_public_ip" {
+# }

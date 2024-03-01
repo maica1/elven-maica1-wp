@@ -4,7 +4,7 @@ module "vpc" {
   version = "5.5.2"
 
   name = "vpc-wp-maica1"
-  azs  = ["${var.aws_region}a","${var.aws_region}b"]
+  azs  = ["${var.aws_region}a","${var.aws_region}c"]
   
   cidr            = var.vpc_cidr_block
   # enable_ipv6     = true
@@ -35,7 +35,8 @@ module "vpc" {
    
   tags = {
     project = "wp-Maica1"
-    cost = "free"
+    env     = "study"
+    cost    = "free"
   }
 }
 

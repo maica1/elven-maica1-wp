@@ -39,11 +39,11 @@ resource "aws_vpc_security_group_ingress_rule" "ws-rules" {
   cidr_ipv4 = var.ws_sg_ports[count.index] == "22" ? "${data.external.my_ip.result.ip}/32" : "0.0.0.0/0" 
 }
 
-# module "web_server" {
-#   source      = "./MODULES/ec2"
-#   aws_region  = var.aws_region
-#   ec2_ami     = var.ec2_ami
-#   subnet_id   = module.main_vpc.public_subnets
-#   ec2_instance_count = var.ec2_instance_count
-#   security_group = [aws_security_group.ws_sg.id]
-# }
+module "web_server" {
+  source      = "./MODULES/ec2"
+  aws_region  = var.aws_region
+  ec2_ami     = var.ec2_ami
+  subnet_id   = module.main_vpc.public_subnets
+  ec2_instance_count = var.ec2_instance_count
+  security_group = [aws_security_group.ws_sg.id]
+}

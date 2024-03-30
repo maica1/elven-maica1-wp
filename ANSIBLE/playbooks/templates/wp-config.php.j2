@@ -26,10 +26,10 @@ define( 'DB_NAME', '{{ WP_DB_NAME | default("blog") }}' );
 define( 'DB_USER', '{{ rds_user | default("admin") }}' );
 
 /** Senha do banco de dados MySQL */
-define( 'DB_PASSWORD', '{{ rds_password | default("elfos123!") }}' );
+define( 'DB_PASSWORD', '{{ rds_password | default("Elfos123!") }}' );
 
 /** Nome do host do MySQL */
-define( 'DB_HOST', '{{ hostvars["localhost"]["RDS_ENDPOINT"] | default("localhost")}}' );
+define( 'DB_HOST', '{{  hostvars['localhost']["database_info"]["instances"][0]["endpoint"]["address"] | default("localhost")}}' );
 
 /** Charset do banco de dados a ser usado na criação das tabelas. */
 define( 'DB_CHARSET', 'utf8mb4' );
@@ -49,15 +49,17 @@ define( 'DB_COLLATE', '' );
  * usuários a fazerem login novamente.
  *
  * @since 2.6.0
- */
-define( 'AUTH_KEY',         'coloque a sua frase única aqui' );
-define( 'SECURE_AUTH_KEY',  'coloque a sua frase única aqui' );
-define( 'LOGGED_IN_KEY',    'coloque a sua frase única aqui' );
-define( 'NONCE_KEY',        'coloque a sua frase única aqui' );
-define( 'AUTH_SALT',        'coloque a sua frase única aqui' );
-define( 'SECURE_AUTH_SALT', 'coloque a sua frase única aqui' );
-define( 'LOGGED_IN_SALT',   'coloque a sua frase única aqui' );
-define( 'NONCE_SALT',       'coloque a sua frase única aqui' );
+ 
+* define( 'AUTH_KEY',         'coloque a sua frase única aqui' );
+* define( 'SECURE_AUTH_KEY',  'coloque a sua frase única aqui' );
+* define( 'LOGGED_IN_KEY',    'coloque a sua frase única aqui' );
+* define( 'NONCE_KEY',        'coloque a sua frase única aqui' );
+* define( 'AUTH_SALT',        'coloque a sua frase única aqui' );
+* define( 'SECURE_AUTH_SALT', 'coloque a sua frase única aqui' );
+* define( 'LOGGED_IN_SALT',   'coloque a sua frase única aqui' );
+* define( 'NONCE_SALT',       'coloque a sua frase única aqui' );
+*/
+{{ salt.content }}
 
 /**#@-*/
 

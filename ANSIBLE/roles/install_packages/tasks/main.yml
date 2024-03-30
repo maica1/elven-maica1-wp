@@ -6,10 +6,13 @@
   when: ansible_os_family == "Debian"
 
 - name: Install packages from the CentOS repo
-  package:
+  ansible.builtin.package:
       name: "{{ package }}"
       state: present
   loop: "{{ PACKAGE_LIST }}"
   loop_control:
     loop_var: package
+  notify: Start nginx
 
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

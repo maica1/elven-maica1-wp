@@ -1,2 +1,8 @@
 ---
 # handlers file for install_packages
+- name: Start nginx
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.service:
+    name: nginx
+    state: started
+  when: "'nginx' in PACKAGE_LIST "

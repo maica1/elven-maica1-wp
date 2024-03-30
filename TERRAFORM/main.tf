@@ -63,3 +63,22 @@ resource "ansible_host" "ws" {
   groups = ["web_servers"]
 }
 
+resource "aws_route53_zone" "main" {
+  name = "maica1.site"
+
+  tags = {
+    project = "wp-maica1"
+    env     = "study"
+  }
+}
+
+resource "aws_route53_record" "www" {
+  count      = var.ec2_instance_count
+  zone_id    = aws_route53_zone.main.zone_id
+  name       = join(".", [split(".", module.web_server.private_dns[count.index])[0], "maica1.site"])
+  type       = "A"
+  ttl        = 300
+  records    = [module.web_server.public_ip[count.index]]
+  depends_on = [aws_route53_zone.main]
+}
+

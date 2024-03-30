@@ -1,6 +1,9 @@
 ---
 # tasks file for create_dirs
+# TODO: Revisit this task ant test it against check mode from scratch
 - name: Create dir
+  # check_mode: false 
+  ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
     path: "{{ directory }}"
     owner: "{{ USER | default(ansible_user_id) or default(omit) }}"

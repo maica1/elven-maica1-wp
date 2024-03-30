@@ -1,0 +1,10 @@
+---
+- name: Import install tasks
+  ansible.builtin.import_tasks: install.yml
+  when: letsencrypt_setup
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Import certificate tasks
+  ansible.builtin.import_tasks: certificate.yml
+  when: letsencrypt_cert|d()
+  ignore_errors: "{{ ansible_check_mode }}"

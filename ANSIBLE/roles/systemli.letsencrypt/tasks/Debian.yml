@@ -1,0 +1,27 @@
+---
+- name: Install nsupdate which is used by the certbot auth-hook
+  ansible.builtin.apt:
+    pkg: dnsutils
+    state: present
+    cache_valid_time: 600
+  when: letsencrypt_cert is defined and letsencrypt_cert.challenge|default() == 'dns'
+
+- name: Install Let's Encrypt Certbot client
+  ansible.builtin.apt:
+    pkg: certbot
+    state: present
+    cache_valid_time: 600
+
+- name: Install certbot plugin 'apache' on webservers
+  ansible.builtin.apt:
+    pkg: python3-certbot-apache
+    state: present
+    cache_valid_time: 600
+  when: letsencrypt_cert is defined and letsencrypt_cert.challenge|default() == 'http' and letsencrypt_http_auth == 'apache'
+
+- name: Install certbot plugin 'nginx' on webservers
+  ansible.builtin.apt:
+    pkg: python3-certbot-nginx
+    state: present
+    cache_valid_time: 600
+  when: letsencrypt_cert is defined and letsencrypt_cert.challenge|default() == 'http' and letsencrypt_http_auth == 'nginx'

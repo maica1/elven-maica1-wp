@@ -49,10 +49,17 @@ resource "ansible_group" "web_servers" {
 }
 
 module "web_server" {
-  source      = "./MODULES/ec2"
-  aws_region  = var.aws_region
-  ec2_ami     = var.ec2_ami
-  subnet_id   = module.main_vpc.public_subnets
+  source             = "./MODULES/ec2"
+  aws_region         = var.aws_region
+  ec2_ami            = var.ec2_ami
+  subnet_id          = module.main_vpc.public_subnets
   ec2_instance_count = var.ec2_instance_count
-  security_group = [aws_security_group.ws_sg.id]
+  security_group     = [aws_security_group.ws_sg.id]
 }
+
+resource "ansible_host" "ws" {
+  count = var.ec2_instance_count
+  name   = module.web_server.public_dns[count.index]
+  groups = ["web_servers"]
+}
+

@@ -3,11 +3,11 @@
 
 # }
 module "main_vpc" {
-  source  = "./MODULES/network"
-  aws_region      = var.aws_region
-  vpc_cidr_block  = var.vpc_cidr_block
+  source                    = "./MODULES/network"
+  aws_region                = var.aws_region
+  vpc_cidr_block            = var.vpc_cidr_block
   vpc_subnet_pub_az_a_cidr  = var.vpc_subnet_pub_az_a_cidr
-  vpc_subnet_pub_az_b_cidr  = var.vpc_subnet_pub_az_b_cidr 
+  vpc_subnet_pub_az_b_cidr  = var.vpc_subnet_pub_az_b_cidr
   vpc_subnet_priv_az_a_cidr = var.vpc_subnet_priv_az_a_cidr
   vpc_subnet_priv_az_b_cidr = var.vpc_subnet_priv_az_b_cidr
 
@@ -23,20 +23,29 @@ resource "aws_security_group" "ws_sg" {
   vpc_id      = module.main_vpc.vpc_id
 
   tags = {
-    Name = "Webservers security group"
+    Name    = "Webservers security group"
     project = "wp-Maica1"
     env     = "study"
     cost    = "free"
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "ws-rules" {
-  count = length(var.ws_sg_ports)
+resource "aws_vpc_security_group_ingress_rule" "ws-irules" {
+  count             = length(var.ws_sg_ports)
   security_group_id = aws_security_group.ws_sg.id
-  from_port = var.ws_sg_ports[count.index]
-  to_port = var.ws_sg_ports[count.index]
-  ip_protocol = "tcp"
-  cidr_ipv4 = var.ws_sg_ports[count.index] == "22" ? "${data.external.my_ip.result.ip}/32" : "0.0.0.0/0" 
+  from_port         = var.ws_sg_ports[count.index]
+  to_port           = var.ws_sg_ports[count.index]
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.ws_sg_ports[count.index] == "22" ? "${data.external.my_ip.result.ip}/32" : "0.0.0.0/0"
+}
+resource "aws_vpc_security_group_egress_rule" "ws-erules" {
+  security_group_id = aws_security_group.ws_sg.id
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "ansible_group" "web_servers" {
+  name = "web_servers"
 }
 
 module "web_server" {

@@ -1,0 +1,49 @@
+
+---
+- name: ">>> AUTHENTICATE ON AWS  <<<"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../vault/aws_credentials.yml
+  tasks:
+
+  - name: Verify if we have aws_cli installed
+    check_mode: false
+    ansible.builtin.stat:
+      path: /usr/local/aws-cli/v2/current
+    register: is_awscli_installed
+
+  - name: Download aws_cli
+    check_mode: false
+    ansible.builtin.unarchive:
+      src: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+      dest: playbooks/files/
+      remote_src: yes
+      creates: /tmp/aws
+    when: is_awscli_installed.stat.islnk is not defined
+    register: aws_cli_downloaded
+
+  - name: install aws_cli
+    check_mode: false
+    ansible.builtin.shell: playbooks/files/install
+    when: is_awscli_installed.stat.islnk is not defined
+
+  - name: Configure AWS.
+    check_mode: false
+    shell: aws configure set {{ item.key }} {{ item.value }} --profile blog-study
+    no_log: True
+    with_dict:
+      aws_access_key_id: "{{ aws_credentials.accesskey }}"
+      aws_secret_access_key: "{{ aws_credentials.secretkey }}"
+      region: "{{ aws_credentials.region | default('sa-east-1')}}"
+      format: "json"
+    changed_when: false
+    tags: auth
+
+  - name: Download wp_cli
+    check_mode: false
+    ansible.builtin.get_url:
+      url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+      dest: "{{ playbook_dir }}/files/wp-cli.phar"
+      checksum: md5:6710e90c3ed173925acd35ce5fe5aaf9
+      mode: '755'

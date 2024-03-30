@@ -82,3 +82,44 @@ resource "aws_route53_record" "www" {
   depends_on = [aws_route53_zone.main]
 }
 
+resource "aws_security_group" "db_sg" {
+  name        = "db_sg"
+  description = "allow mysql traffic"
+  vpc_id      = module.main_vpc.vpc_id
+
+  tags = {
+    Name    = "Database security group"
+    project = "wp-Maica1"
+    env     = "study"
+    cost    = "free"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "db-irules" {
+  security_group_id            = aws_security_group.db_sg.id
+  from_port                    = 3306
+  to_port                      = 3306
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.ws_sg.id
+}
+
+# resource "aws_vpc_security_group_ingress_rule" "db-icmp" {
+#   security_group_id = aws_security_group.db_sg.id
+#   from_port = 0
+#   to_port = 8
+#   ip_protocol = "icmp"
+#   referenced_security_group_id = aws_security_group.ws_sg.id
+# }
+
+module "db" {
+  source = "./MODULES/rds"
+
+  database_subnets   = module.main_vpc.private_subnets
+  rds_instance_name  = "wp-db-maica1"
+  db_engine          = "mysql"
+  db_version         = "8.0.35"
+  security_group_ids = [aws_security_group.db_sg.id]
+  db_username        = "admin"
+  db_name            = "blog"
+  storage_type       = "gp2"
+}

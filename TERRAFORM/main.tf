@@ -78,7 +78,7 @@ resource "aws_security_group" "ws_sg" {
   name        = "ws_sg"
   description = "allow web traffic and ssh  to ws"
   vpc_id      = module.main_vpc.vpc_id
-
+  
   tags = {
     Name    = "Webservers security group"
     project = "wp-Maica1"
@@ -92,7 +92,7 @@ locals {
     { port = "22", target = "${data.external.my_ip.result.ip}/32" },
     { port = "80", target = "0.0.0.0/0" },
     { port = "9100", target = "${aws_security_group.hm_sg.id}" },
-    # { port = "443", target = "0.0.0.0/0" }
+    { port = "443", target = "0.0.0.0/0" }
 
   ]
 }
@@ -151,7 +151,69 @@ resource "aws_route53_record" "www" {
   depends_on = [aws_route53_zone.main]
 }
 
+# Create a security group for the ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "alb-sg"
+  description = "Security group for Application Load Balancer"
+  vpc_id      = module.main_vpc.vpc_id
 
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name    = "ALB security group"
+    project = "wp-Maica1"
+    env     = "study"
+  }
+}
+
+# Create a target group for the ALB
+resource "aws_lb_target_group" "wordpress_target_group" {
+  name     = "wordpress-target-group"
+  port     = 443
+  protocol = "HTTPS"
+  target_type = "instance"
+  vpc_id   = module.main_vpc.vpc_id
+}
+
+# Create a listener for the ALB
+resource "aws_lb_listener" "alb_listener" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.certificate_arn
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.wordpress_target_group.arn
+  }
+}
+
+# Create the ALB
+resource "aws_lb" "alb" {
+  name               = "wordpress-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = module.main_vpc.public_subnets
+}
+
+resource "aws_lb_target_group_attachment" "wordpress_instances_attachment" {
+  count = var.ec2_instance_count
+  target_group_arn = aws_lb_target_group.wordpress_target_group.arn
+  target_id        = module.web_server.id[count.index]
+  port             = 443
+}
 
 resource "aws_security_group" "db_sg" {
   name        = "db_sg"

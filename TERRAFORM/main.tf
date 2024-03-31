@@ -2,6 +2,8 @@
 #   source = "./MODULES/s3"
 
 # }
+
+# CREATE MAIN VPC
 module "main_vpc" {
   source                    = "./MODULES/network"
   aws_region                = var.aws_region
@@ -12,10 +14,11 @@ module "main_vpc" {
   vpc_subnet_priv_az_b_cidr = var.vpc_subnet_priv_az_b_cidr
 
 }
-
+# GET MY PUBLIC IP SO I CAN CREATE SG RULES WITH IT
 data "external" "my_ip" {
   program = ["sh", "-c", "curl -s https://api.myip.com"]
 }
+# CREATES SG FOR HM, THEN CREATES INGRESS AND EGRESS RULES
 resource "aws_security_group" "hm_sg" {
   name        = "hm_sg"
   description = "allow web traffic and ssh  to hm"
@@ -29,14 +32,23 @@ resource "aws_security_group" "hm_sg" {
   }
 }
 
+locals {
+  hm_rules = [
+    { port = "9100", target = "${aws_security_group.hm_sg.id}" },
+    { port = "9090", target = "${data.external.my_ip.result.ip}/32" },
+    { port = "3000", target = "0.0.0.0/0" },
+    { port = "22", target = "${data.external.my_ip.result.ip}/32" }
+  ]
+}
+
 resource "aws_vpc_security_group_ingress_rule" "hm-irules" {
-  count             = length(var.hm_sg_ports)
-  security_group_id = aws_security_group.hm_sg.id
-  from_port         = var.hm_sg_ports[count.index]
-  to_port           = var.hm_sg_ports[count.index]
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.hm_sg_ports[count.index] == "22" || var.hm_sg_ports[count.index] =="9090" ? "${data.external.my_ip.result.ip}/32" : null
-  referenced_security_group_id =  var.hm_sg_ports[count.index] == "9100" ? aws_security_group.hm_sg.id : null
+  count                        = length(local.hm_rules)
+  security_group_id            = aws_security_group.hm_sg.id
+  from_port                    = local.hm_rules[count.index].port
+  to_port                      = local.hm_rules[count.index].port
+  ip_protocol                  = "tcp"
+  cidr_ipv4                    = length(regexall("\\d/[0-9]{1,2}$", local.hm_rules[count.index].target)) > 0 ? local.hm_rules[count.index].target : null
+  referenced_security_group_id = length(regexall("\\d/[0-9]{1,2}$", local.hm_rules[count.index].target)) > 0 ? null : local.hm_rules[count.index].target
 }
 resource "aws_vpc_security_group_egress_rule" "hm-erules" {
   security_group_id = aws_security_group.hm_sg.id
@@ -49,7 +61,7 @@ resource "ansible_group" "hm" {
 }
 module "healthmonitor" {
   source             = "./MODULES/healthmonitor"
-  ec2_instance_name = "hm"
+  ec2_instance_name  = "hm"
   aws_region         = var.aws_region
   ec2_ami            = var.ec2_ami
   subnet_id          = module.main_vpc.public_subnets
@@ -58,7 +70,7 @@ module "healthmonitor" {
 }
 
 resource "ansible_host" "hm" {
-  count = 1
+  count  = 1
   name   = module.healthmonitor.public_dns[count.index]
   groups = ["hm"]
 }
@@ -75,14 +87,25 @@ resource "aws_security_group" "ws_sg" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "ws-irules" {
-  count             = length(var.ws_sg_ports)
-  security_group_id = aws_security_group.ws_sg.id
-  from_port         = var.ws_sg_ports[count.index]
-  to_port           = var.ws_sg_ports[count.index]
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.ws_sg_ports[count.index] == "22" ? "${data.external.my_ip.result.ip}/32" : "0.0.0.0/0"
+locals {
+  ws_sg_ports = [
+    { port = "22", target = "${data.external.my_ip.result.ip}/32" },
+    { port = "80", target = "0.0.0.0/0" },
+    { port = "9100", target = "${aws_security_group.hm_sg.id}" },
+    # { port = "443", target = "0.0.0.0/0" }
+
+  ]
 }
+resource "aws_vpc_security_group_ingress_rule" "ws-irules" {
+  count                        = length(local.ws_sg_ports)
+  security_group_id            = aws_security_group.ws_sg.id
+  from_port                    = local.ws_sg_ports[count.index].port
+  to_port                      = local.ws_sg_ports[count.index].port
+  ip_protocol                  = "tcp"
+  cidr_ipv4                    = length(regexall("\\d/[0-9]{1,2}$", local.ws_sg_ports[count.index].target)) > 0 ? local.ws_sg_ports[count.index].target : null
+  referenced_security_group_id = length(regexall("\\d/[0-9]{1,2}$", local.ws_sg_ports[count.index].target)) > 0 ? null : local.ws_sg_ports[count.index].target
+}
+
 resource "aws_vpc_security_group_egress_rule" "ws-erules" {
   security_group_id = aws_security_group.ws_sg.id
   ip_protocol       = "-1"
@@ -98,13 +121,13 @@ module "web_server" {
   aws_region         = var.aws_region
   ec2_ami            = var.ec2_ami
   subnet_id          = module.main_vpc.public_subnets
-  ec2_instance_name = "ws"
+  ec2_instance_name  = "ws"
   ec2_instance_count = var.ec2_instance_count
   security_group     = [aws_security_group.ws_sg.id]
 }
 
 resource "ansible_host" "ws" {
-  count = var.ec2_instance_count
+  count  = var.ec2_instance_count
   name   = module.web_server.public_dns[count.index]
   groups = ["web_servers"]
 }
@@ -127,6 +150,8 @@ resource "aws_route53_record" "www" {
   records    = [module.web_server.public_ip[count.index]]
   depends_on = [aws_route53_zone.main]
 }
+
+
 
 resource "aws_security_group" "db_sg" {
   name        = "db_sg"

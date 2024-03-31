@@ -23,7 +23,7 @@ variable "ec2_instance_count" {
 variable "ec2_ami" {
   default = "ami-0424a16d0e63b113b"
 }
-variable "certificate_arn" {  
+variable "certificate_arn" {
 }
 variable "efs_creation_token" {
 }

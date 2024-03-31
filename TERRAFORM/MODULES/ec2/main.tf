@@ -25,8 +25,7 @@ resource "aws_instance" "this" {
 
 connection {
   type        = "ssh"
-  user        = "ec2-user"  # Update with your SSH username
-  # private_key = file("path/to/your/private_key.pem")  # Update with the path to your SSH private key
+  user        = "ec2-user"
   agent = true
   host        = self.public_ip
 }

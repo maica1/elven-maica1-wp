@@ -1,11 +1,9 @@
 output "public_ip" {
   value = aws_instance.this[*].public_ip
 }
-
-# output "instance_label" {
-#   value = aws_instance.this[*].tags
-# }
-
+output "id" {
+  value = aws_instance.this.*.id
+}
 output "hosts" {
   value = aws_instance.this.*.tags.Name
 }

@@ -1,18 +1,11 @@
 ---
 # tasks file for install_packages
-- name: Update cache for ubuntu
-  ansible.builtin.apt:
-    update_cache: yes
-  when: ansible_os_family == "Debian"
+- name: Repo based installation tasks
+  ansible.builtin.include_tasks: install_linux_packages.yml
 
-- name: Install packages from the CentOS repo
-  ansible.builtin.package:
-      name: "{{ package }}"
-      state: present
-  loop: "{{ PACKAGE_LIST }}"
-  loop_control:
-    loop_var: package
-  notify: Start nginx
+- name: Repo based installation tasks
+  ansible.builtin.include_tasks: install_docker.yml
+  when: install_docker is defined
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers

@@ -16,7 +16,52 @@ module "main_vpc" {
 data "external" "my_ip" {
   program = ["sh", "-c", "curl -s https://api.myip.com"]
 }
+resource "aws_security_group" "hm_sg" {
+  name        = "hm_sg"
+  description = "allow web traffic and ssh  to hm"
+  vpc_id      = module.main_vpc.vpc_id
 
+  tags = {
+    Name    = "Health monitor security group"
+    project = "wp-Maica1"
+    env     = "study"
+    cost    = "free"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "hm-irules" {
+  count             = length(var.hm_sg_ports)
+  security_group_id = aws_security_group.hm_sg.id
+  from_port         = var.hm_sg_ports[count.index]
+  to_port           = var.hm_sg_ports[count.index]
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.hm_sg_ports[count.index] == "22" || var.hm_sg_ports[count.index] =="9090" ? "${data.external.my_ip.result.ip}/32" : null
+  referenced_security_group_id =  var.hm_sg_ports[count.index] == "9100" ? aws_security_group.hm_sg.id : null
+}
+resource "aws_vpc_security_group_egress_rule" "hm-erules" {
+  security_group_id = aws_security_group.hm_sg.id
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "ansible_group" "hm" {
+  name = "hm"
+}
+module "healthmonitor" {
+  source             = "./MODULES/healthmonitor"
+  ec2_instance_name = "hm"
+  aws_region         = var.aws_region
+  ec2_ami            = var.ec2_ami
+  subnet_id          = module.main_vpc.public_subnets
+  ec2_instance_count = 1
+  security_group     = [aws_security_group.hm_sg.id]
+}
+
+resource "ansible_host" "hm" {
+  count = 1
+  name   = module.healthmonitor.public_dns[count.index]
+  groups = ["hm"]
+}
 resource "aws_security_group" "ws_sg" {
   name        = "ws_sg"
   description = "allow web traffic and ssh  to ws"
@@ -53,6 +98,7 @@ module "web_server" {
   aws_region         = var.aws_region
   ec2_ami            = var.ec2_ami
   subnet_id          = module.main_vpc.public_subnets
+  ec2_instance_name = "ws"
   ec2_instance_count = var.ec2_instance_count
   security_group     = [aws_security_group.ws_sg.id]
 }

@@ -18,6 +18,10 @@ variable "ec2_instance_type" {
   type    = string
 }
 
+variable "ec2_instance_name" {
+  default = "ec2"
+  type    = string
+}
 variable "security_group" {
   type    = list(any)
   default = null

@@ -7,14 +7,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'node'
-    static_configs:
-      - targets: 
-      {% for host in groups['hm']+groups['web_servers'] %}
-      - '{{ host }}:9100'
-      {% endfor %}
-
-  - job_name: 'ec2'
+  - job_name: 'ec2_node'
     ec2_sd_configs:
       - region: '{{ aws_region }}'
         access_key: '{{ aws_access_key }}'

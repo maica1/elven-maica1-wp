@@ -92,7 +92,8 @@ locals {
     { port = "22", target = "${data.external.my_ip.result.ip}/32" },
     { port = "80", target = "0.0.0.0/0" },
     { port = "9100", target = "${aws_security_group.hm_sg.id}" },
-    { port = "443", target = "0.0.0.0/0" }
+    { port = "443", target = "0.0.0.0/0" },
+    { port = "2049", target = "${aws_security_group.efs_sg.id}"}
 
   ]
 }
@@ -111,7 +112,41 @@ resource "aws_vpc_security_group_egress_rule" "ws-erules" {
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 }
+resource "aws_security_group" "efs_sg" {
+  name        = "efs-sg"
+  description = "Security group for EFS mount targets"
+  vpc_id      = module.main_vpc.vpc_id
 
+  ingress {
+    from_port = 0
+    to_port = 0
+    protocol                  = "-1"
+    security_groups = [aws_security_group.ws_sg.id]
+  }
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol                  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+resource "aws_efs_file_system" "efs" {
+  creation_token = var.efs_creation_token
+  performance_mode = "generalPurpose"
+  throughput_mode = "bursting"
+  encrypted = false
+
+  tags = {
+    Name = "wordpress-efs"
+  }
+}
+
+resource "aws_efs_mount_target" "mount_target" {
+  count          = length(module.main_vpc.private_subnets)
+  file_system_id = aws_efs_file_system.efs.id
+  subnet_id      = module.main_vpc.private_subnets[count.index]
+  security_groups = [aws_security_group.efs_sg.id]
+}
 resource "ansible_group" "web_servers" {
   name = "web_servers"
 }
@@ -124,6 +159,7 @@ module "web_server" {
   ec2_instance_name  = "ws"
   ec2_instance_count = var.ec2_instance_count
   security_group     = [aws_security_group.ws_sg.id]
+  efs_id             = "${aws_efs_file_system.efs.id}"
 }
 
 resource "ansible_host" "ws" {

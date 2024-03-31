@@ -14,9 +14,20 @@ resource "aws_instance" "this" {
     cost    = "free-tier"
     project = "wp-Maica1"
   }
-}
-// Define other EC2 instance settings here
 
-# output "ec2_instance_ids" {
-#   value = aws_instance[*].public_ip
-# }
+  provisioner "remote-exec" {
+  inline = [
+    "sudo yum install -y amazon-efs-utils",
+    "sudo mkdir -p /uploads && chown -R ec2-user:nginx /uploads",
+    "sudo mount -t efs ${var.efs_id}:/ /uploads || true",
+  ]
+}
+
+connection {
+  type        = "ssh"
+  user        = "ec2-user"  # Update with your SSH username
+  # private_key = file("path/to/your/private_key.pem")  # Update with the path to your SSH private key
+  agent = true
+  host        = self.public_ip
+}
+}

@@ -16,17 +16,17 @@ resource "aws_instance" "this" {
   }
 
   provisioner "remote-exec" {
-  inline = [
-    "sudo yum install -y amazon-efs-utils",
-    "sudo mkdir -p /uploads && chown -R ec2-user:nginx /uploads",
-    "sudo mount -t efs ${var.efs_id}:/ /uploads || true",
-  ]
-}
+    inline = [
+      "sudo yum install -y amazon-efs-utils",
+      "sudo mkdir -p /uploads && chown -R ec2-user:nginx /uploads",
+      "sudo mount -t efs ${var.efs_id}:/ /uploads || true",
+    ]
+  }
 
-connection {
-  type        = "ssh"
-  user        = "ec2-user"
-  agent = true
-  host        = self.public_ip
-}
+  connection {
+    type  = "ssh"
+    user  = "ec2-user"
+    agent = true
+    host  = self.public_ip
+  }
 }

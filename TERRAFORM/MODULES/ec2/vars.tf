@@ -29,7 +29,7 @@ variable "security_group" {
 variable "subnet_id" {}
 
 variable "efs_id" {
-  type = string
+  type    = string
   default = null
 }
 

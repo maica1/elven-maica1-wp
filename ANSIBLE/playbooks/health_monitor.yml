@@ -15,7 +15,7 @@
   roles:
     - role: create_dirs
       vars: 
-        DIRS: [/var/lib/prometheus/, /opt/prometheus]
+        DIRS: [/var/lib/prometheus/, "{{ prometheus_data_dir}}","{{ prometheus_data_dir}}compose" ]
         GROUP: "{{ ansible_user }}"
         USER:  65534
         MODE: '764'

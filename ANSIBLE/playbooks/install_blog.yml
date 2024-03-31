@@ -1,5 +1,5 @@
 ---
-# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform
+# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker
 # ansible-galaxy role install  systemli.letsencrypt
       # - name: Create sg for ElastiCache
       #   tags: norun
@@ -311,36 +311,36 @@
       loop_control:
         loop_var: package
 
-- name: ">>> VALIDATE WEBPAGE ACCESS <<<"
-  hosts: localhost
-  gather_facts: false
-  become: false
+# - name: ">>> VALIDATE WEBPAGE ACCESS <<<"
+#   hosts: localhost
+#   gather_facts: false
+#   become: false
 
-  vars:
-    DOMAIN: "maica1.site"
+#   vars:
+#     DOMAIN: "maica1.site"
 
-  tasks:
+#   tasks:
 
-  - name: Access homepage via purchased dns
-    ignore_errors: "{{ ansible_check_mode }}"
-    ansible.builtin.uri:
-      url: "http://{{ hostvars[item]['ansible_hostname'] + '.' + DOMAIN }}/hello_world.html"
-    register: access
-    until: "access.status == 200"
-    retries: 10
-    delay: 5
-    loop: "{{ groups['web_servers'] }}"
+#   - name: Access homepage via purchased dns
+#     ignore_errors: "{{ ansible_check_mode }}"
+#     ansible.builtin.uri:
+#       url: "http://{{ hostvars[item]['ansible_hostname'] + '.' + DOMAIN }}/hello_world.html"
+#     register: access
+#     until: "access.status == 200"
+#     retries: 10
+#     delay: 5
+#     loop: "{{ groups['web_servers'] }}"
 
-  - name: Access homepage via aws dns
-    ignore_errors: "{{ ansible_check_mode }}"
-    ansible.builtin.uri:
-      url: "http://{{ hostvars[item]['ansible_ec2_public_hostname'] }}/hello_world.html"
-      validate_certs: false
-    register: access
-    until: "access.status == 200"
-    retries: 10
-    delay: 5
-    loop: "{{ groups['web_servers'] }}"
+#   - name: Access homepage via aws dns
+#     ignore_errors: "{{ ansible_check_mode }}"
+#     ansible.builtin.uri:
+#       url: "http://{{ hostvars[item]['ansible_ec2_public_hostname'] }}/hello_world.html"
+#       validate_certs: false
+#     register: access
+#     until: "access.status == 200"
+#     retries: 10
+#     delay: 5
+#     loop: "{{ groups['web_servers'] }}"
 
 - name: ">>> RDS INFO <<<"
   hosts: localhost
@@ -454,6 +454,7 @@
         
     - name: Install wordpress blog
       become_user: nginx
+      throttle: 1
       ansible.builtin.command:
         chdir: "{{ ROOT_DIR }}"
         cmd: wp core install --url={{ ansible_hostname + '.' + DOMAIN}} --title="Desafio final elvenworks" --admin_user={{ wp_admin_password }} --admin_password={{ wp_admin_password }} --admin_email=test@test.com

@@ -74,11 +74,51 @@ resource "ansible_host" "hm" {
   name   = module.healthmonitor.public_dns[count.index]
   groups = ["hm"]
 }
+resource "aws_security_group" "memcache_sg" {
+  name        = "memcache_sg"
+  description = "Security group for memcached cluster"
+  vpc_id      = module.main_vpc.vpc_id
+
+  ingress {
+    from_port       = 11211
+    to_port         = 11211
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ws_sg.id]
+  }
+  ingress {
+    from_port       = 11211
+    to_port         = 11211
+    protocol        = "udp"
+    security_groups = [aws_security_group.ws_sg.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+resource "aws_elasticache_subnet_group" "memcache-wp" {
+  name       = "cache-subnets"
+  subnet_ids = module.main_vpc.private_subnets
+}
+resource "aws_elasticache_cluster" "memcached" {
+  cluster_id           = "wordpress-memcached"
+  engine               = "memcached"
+  node_type            = "cache.t3.micro"
+  num_cache_nodes      = 2
+  az_mode              = "cross-az"
+  parameter_group_name = "default.memcached1.6"
+  security_group_ids   = [aws_security_group.memcache_sg.id]
+  subnet_group_name    = aws_elasticache_subnet_group.memcache-wp.name
+}
+
+
 resource "aws_security_group" "ws_sg" {
   name        = "ws_sg"
   description = "allow web traffic and ssh  to ws"
   vpc_id      = module.main_vpc.vpc_id
-  
+
   tags = {
     Name    = "Webservers security group"
     project = "wp-Maica1"
@@ -93,7 +133,7 @@ locals {
     { port = "80", target = "0.0.0.0/0" },
     { port = "9100", target = "${aws_security_group.hm_sg.id}" },
     { port = "443", target = "0.0.0.0/0" },
-    { port = "2049", target = "${aws_security_group.efs_sg.id}"}
+    { port = "2049", target = "${aws_security_group.efs_sg.id}" }
 
   ]
 }
@@ -118,23 +158,23 @@ resource "aws_security_group" "efs_sg" {
   vpc_id      = module.main_vpc.vpc_id
 
   ingress {
-    from_port = 0
-    to_port = 0
-    protocol                  = "-1"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
     security_groups = [aws_security_group.ws_sg.id]
   }
   egress {
-    from_port = 0
-    to_port = 0
-    protocol                  = "-1"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 resource "aws_efs_file_system" "efs" {
-  creation_token = var.efs_creation_token
+  creation_token   = var.efs_creation_token
   performance_mode = "generalPurpose"
-  throughput_mode = "bursting"
-  encrypted = false
+  throughput_mode  = "bursting"
+  encrypted        = false
 
   tags = {
     Name = "wordpress-efs"
@@ -142,9 +182,9 @@ resource "aws_efs_file_system" "efs" {
 }
 
 resource "aws_efs_mount_target" "mount_target" {
-  count          = length(module.main_vpc.private_subnets)
-  file_system_id = aws_efs_file_system.efs.id
-  subnet_id      = module.main_vpc.private_subnets[count.index]
+  count           = length(module.main_vpc.private_subnets)
+  file_system_id  = aws_efs_file_system.efs.id
+  subnet_id       = module.main_vpc.private_subnets[count.index]
   security_groups = [aws_security_group.efs_sg.id]
 }
 resource "ansible_group" "web_servers" {
@@ -159,7 +199,7 @@ module "web_server" {
   ec2_instance_name  = "ws"
   ec2_instance_count = var.ec2_instance_count
   security_group     = [aws_security_group.ws_sg.id]
-  efs_id             = "${aws_efs_file_system.efs.id}"
+  efs_id             = aws_efs_file_system.efs.id
 }
 
 resource "ansible_host" "ws" {
@@ -215,11 +255,11 @@ resource "aws_security_group" "alb_sg" {
 
 # Create a target group for the ALB
 resource "aws_lb_target_group" "wordpress_target_group" {
-  name     = "wordpress-target-group"
-  port     = 443
-  protocol = "HTTPS"
+  name        = "wordpress-target-group"
+  port        = 443
+  protocol    = "HTTPS"
   target_type = "instance"
-  vpc_id   = module.main_vpc.vpc_id
+  vpc_id      = module.main_vpc.vpc_id
 }
 
 # Create a listener for the ALB
@@ -245,7 +285,7 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group_attachment" "wordpress_instances_attachment" {
-  count = var.ec2_instance_count
+  count            = var.ec2_instance_count
   target_group_arn = aws_lb_target_group.wordpress_target_group.arn
   target_id        = module.web_server.id[count.index]
   port             = 443

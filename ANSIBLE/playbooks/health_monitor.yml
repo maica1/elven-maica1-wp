@@ -3,6 +3,7 @@
   hosts: hm
   gather_facts: true
   vars:
+    grafana_version: "10.1.9"
     prometheus_version: "v2.51.1"
     prometheus_data_dir: /opt/prometheus/
     node_exporter_version: "v1.7.0"
@@ -63,10 +64,15 @@
     - name: Create prometheus.yml  file
       ansible.builtin.template:
         src: prometheus.yml.j2
-        dest: /opt/prometheus/prometheus.yml
-        user: 65534
+        dest: "{{ prometheus_data_dir }}prometheus.yml"
+        owner: 65534
         group: "{{ ansible_user }}"
         mode: '764'
+
+    - name: Creeate Docker Compose file
+      ansible.builtin.template:
+        src: docker-compose-prom.yml.j2
+        dest: "{{ prometheus_data_dir }}compose/docker-compose.yml"
 
     - name: Start Prometheus container
       community.docker.docker_container:

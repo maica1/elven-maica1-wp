@@ -22,18 +22,18 @@ variable "aws_access_key" {
 variable "aws_secret_key" {
 }
 variable "ec2_instance_count" {
-  type = number
+  type    = number
   default = 1
 }
 variable "ec2_ami" {
   default = "ami-0424a16d0e63b113b"
 }
 variable "certificate_arn" {
-  type = string
+  type    = string
   default = null
 }
 variable "efs_creation_token" {
-  type  = string
+  type    = string
   default = null
 }
 variable "efs_id" {
@@ -41,18 +41,18 @@ variable "efs_id" {
   default = null
 }
 variable "memcached_port" {
-  type =  number
+  type    = number
   default = 11211
 }
 variable "memcached_node_size" {
-  type  = string
+  type    = string
   default = "cache.t2.micro"
 }
 variable "memcached_n_nodes" {
-  type  = number
+  type    = number
   default = 2
 }
 variable "memcached_parameter_group_name" {
-  type = string
+  type    = string
   default = "default.memcached1.6"
 }

@@ -60,10 +60,10 @@ resource "ansible_group" "hm" {
   name = "hm"
 }
 resource "aws_instance" "hm" {
-  ami                         = var.ec2_ami
-  instance_type               = var.ec2_instance_type
-  subnet_id                   = module.main_vpc.public_subnets[0]
-  vpc_security_group_ids     = [aws_security_group.hm_sg.id]
+  ami                    = var.ec2_ami
+  instance_type          = var.ec2_instance_type
+  subnet_id              = module.main_vpc.public_subnets[0]
+  vpc_security_group_ids = [aws_security_group.hm_sg.id]
 
   key_name                    = var.ssh_key_name
   associate_public_ip_address = true
@@ -73,11 +73,11 @@ resource "aws_instance" "hm" {
     env     = "study"
     cost    = "free-tier"
     project = "wp-Maica1"
-  }  
+  }
 }
 
 resource "ansible_host" "hm" {
-  name   =aws_instance.hm.public_dns
+  name   = aws_instance.hm.public_dns
   groups = ["hm"]
 }
 resource "aws_security_group" "memcache_sg" {
@@ -215,8 +215,8 @@ resource "aws_instance" "ws" {
   }
 
   depends_on = [
-      aws_efs_mount_target.mount_target
-    ]
+    aws_efs_mount_target.mount_target
+  ]
   provisioner "remote-exec" {
     inline = [
       "sudo yum install -q -y amazon-efs-utils && echo 'pass' || true",

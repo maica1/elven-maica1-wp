@@ -15,6 +15,7 @@ jobs:
     env:
       ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
       SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      REGION: ${{ env.AWS_REGION }}
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
@@ -38,15 +39,15 @@ jobs:
             bucket  = "${{ env.S3_TF_BUCKET }}"
             key     = "terraform.tfstate"
             encrypt = true
-            region  = "${{ env.AWS_REGION }}"
+            region  = "${REGION}"
         
-            access_key = "${{ secrets.AWS_ACCESS_KEY }}"
-            secret_key = "${{ secrets.AWS_SECRET_KEY }}"
+            access_key = "${ACCESS_KEY}"
+            secret_key = "${SECRET_KEY}"
 
           }
         }
         EOF
-        
+        cat TERRAFORM/backend.tf
         sed  -e  "s/access_key = .*/access_key = ${{ secrets.AWS_ACCESS_KEY }}/" -e "s/secret_key = .*/secret_key = ${{ secrets.AWS_SECRET_KEY }}/" TERRAFORM/backend.tf
         
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.

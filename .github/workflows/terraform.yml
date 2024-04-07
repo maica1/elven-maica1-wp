@@ -15,7 +15,7 @@ jobs:
     env:
       ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
       SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
-      REGION: ${{ env.AWS_REGION }}
+      REGION: ${{ vars.AWS_REGION }}
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:

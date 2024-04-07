@@ -11,7 +11,7 @@ jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
-    environment: production
+    environment: FINAL_PROJECT
 
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
@@ -32,7 +32,6 @@ jobs:
       env:
         ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
         SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
-      shell: bash
       run: >
         sed -i -e  "s/access_key = .*/access_key = ${ACCESS_KEY}/" -e "s/secret_key = .*/secret_key = ${SECRET_KEY}/" TERRAFORM/backend.tf
 

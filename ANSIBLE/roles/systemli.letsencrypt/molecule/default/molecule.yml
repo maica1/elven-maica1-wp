@@ -1,0 +1,11 @@
+---
+driver:
+  name: podman
+platforms:
+  - name: debian12
+    image: geerlingguy/docker-debian12-ansible:latest
+provisioner:
+  name: ansible
+  ansible_args:
+    - --diff
+  become: true

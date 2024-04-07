@@ -1,0 +1,5 @@
+plugin: amazon.aws.aws_rds
+region: "{{ AWS_REGION }}"
+# profile: blog-study
+secret_key: "{{ aws_credentials.secretkey }}"
+access_key : "{{ aws_credentials.accesskey }}"

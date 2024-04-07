@@ -1,0 +1,51 @@
+version: '3.8'
+name: 'prom_stack'
+services:
+  prometheus:
+    image: prom/prometheus:{{ prometheus_version }}
+    container_name: prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1024M
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:9090/-/ready || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 40s    
+    ports:
+      - "9090:9090"
+    volumes:
+      - {{ prometheus_data_dir }}prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:{{ grafana_version }}
+    container_name: grafana
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 40s               
+    ports:
+      - "3000:3000"
+    environment:
+      GF_DEFAULT_FORCE_MIGRATION: true
+      GF_DISABLE_INITIAL_ADMIN_CREATION: true
+      GF_SECURITY_ADMIN_USER: {{ GRAFANA_ADMIN_USER | default('admin')}}
+      GF_SECURITY_ADMIN_PASSWORD: {{ GRAFANA_ADMIN_PASSWORD | default('customer')}}
+    restart: always
+    volumes:
+      - grafana_data:/var/lib/grafana
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,133 @@
+---
+- name:  ">>> INSTALL PROMETHEUS <<<"
+  hosts: hm
+  gather_facts: true
+  vars:
+    grafana_version: "10.1.9"
+    prometheus_version: "v2.51.1"
+    prometheus_data_dir: /opt/prometheus/
+    node_exporter_version: "v1.7.0"
+    PACKAGE_LIST:
+      - docker
+  vars_files:
+    - ../vault/aws_credentials.yml
+
+  roles:
+    - role: create_dirs
+      vars: 
+        DIRS: [/var/lib/prometheus/, "{{ prometheus_data_dir}}","{{ prometheus_data_dir}}compose" ]
+        GROUP: "{{ ansible_user }}"
+        USER:  65534
+        MODE: '764'
+    - role: create_dirs
+      vars: 
+        DIRS: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
+        USER: "{{ ansible_user }}"
+        GROUP: "adm"
+        MODE: '774'
+    - install_packages
+
+
+  tasks:
+    - name: Enable docker commands without sudo
+      ansible.builtin.user:
+        user: "{{ ansible_user }}"
+        groups:  docker
+        append: true
+   
+    - name: Set user docker config
+      ansible.builtin.lineinfile:
+        line: export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+        path: .bashrc
+
+    - name: Download docker compose
+      ansible.builtin.uri:
+        url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        owner: "{{ ansible_user }}"
+        group: "docker"
+        mode: '775'
+        status_code: [200,304]
+
+    - name: Copy docker compose to user folder
+      ansible.builtin.copy:
+        src: /usr/local/lib/docker/cli-plugins/docker-compose
+        dest: .docker/cli-plugins/docker-compose
+        remote_src: true
+
+    - name: Start docker
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create prometheus.yml  file
+      ansible.builtin.template:
+        src: prometheus.yml.j2
+        dest: "{{ prometheus_data_dir }}prometheus.yml"
+        owner: 65534
+        group: "{{ ansible_user }}"
+        mode: '764'
+
+    - name: Creeate Docker Compose file
+      ansible.builtin.template:
+        src: docker-compose-prom.yml.j2
+        dest: "{{ prometheus_data_dir }}compose/docker-compose.yml"
+
+    - name: Start Prometheus container
+      community.docker.docker_container:
+        name: prometheus
+        image: prom/prometheus:{{ prometheus_version }}
+        state: started
+        restart_policy: always
+        volumes:
+          - "{{ prometheus_data_dir  }}:/prometheus"
+          - "{{ prometheus_data_dir }}prometheus.yml:/etc/prometheus/prometheus.yml"
+        ports:
+          - "9090:9090"
+          
+    - name: Start Node Exporter container
+      community.docker.docker_container:
+        name: node_exporter
+        image: prom/node-exporter:{{ node_exporter_version }}
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ node_exporter_port | default('9100') }}:9100"
+
+- name:  ">>> INSTALL NODE_EXPORTER ON WEB_SERVERS <<<"
+  hosts: web_servers
+  gather_facts: true
+  vars:
+    node_exporter_version: "v1.7.0"
+    install_docker: true
+    PACKAGE_LIST:
+      - docker
+  vars_files:
+    - ../vault/aws_credentials.yml
+
+  roles:
+    - role: create_dirs
+      vars: 
+        DIRS: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
+        USER: "{{ ansible_user }}"
+        GROUP: "adm"
+        MODE: '774'
+    - install_packages
+
+
+  tasks:
+    - name: Start docker
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+    - name: Start Node Exporter container
+      community.docker.docker_container:
+        name: node_exporter
+        image: prom/node-exporter:{{ node_exporter_version }}
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ node_exporter_port | default('9100') }}:9100"
+...

@@ -1,0 +1,13 @@
+- name: Update cache for ubuntu
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install packages from the linux repo
+  ansible.builtin.package:
+      name: "{{ package }}"
+      state: present
+  loop: "{{ PACKAGE_LIST }}"
+  loop_control:
+    loop_var: package
+  notify: Start nginx

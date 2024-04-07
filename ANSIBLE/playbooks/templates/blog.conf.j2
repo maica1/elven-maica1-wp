@@ -1,7 +1,18 @@
 server {
 
-  listen {{ SERVER_PORT | default(80) }};
-  server_name {{ SERVER_NAME | default('_') }};
+  listen 80;
+  server_name http_{{ hostvars[inventory_hostname]['ansible_hostname'] | default('_') }};
+  return 301  https://$host$request_uri;
+
+}
+server {
+
+  listen 443 ssl default_server;
+  server_name https_{{ hostvars[inventory_hostname]['ansible_hostname'] | d('_')}};
+
+
+  ssl_certificate       /etc/letsencrypt/live/{{ hostvars[inventory_hostname]['ansible_hostname'] }}/fullchain.pem ;
+  ssl_certificate_key   /etc/letsencrypt/live/{{ hostvars[inventory_hostname]['ansible_hostname'] }}/privkey.pem ;
 
   root {{ ROOT_DIR | default('/var/www/html/') }};
   index index.php;

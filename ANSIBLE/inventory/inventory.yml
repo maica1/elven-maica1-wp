@@ -1,0 +1,6 @@
+---
+plugin: cloud.terraform.terraform_provider
+project_path: ../TERRAFORM/
+search_child_modules: true
+
+...

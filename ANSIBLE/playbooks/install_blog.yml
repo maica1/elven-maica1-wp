@@ -1,611 +1,257 @@
-- name: ">>> CREATE INFRA <<<"
-  hosts: localhost
-  gather_facts: false
-  vars:
-    project_tags: &tags
-      project: blog
-      env: dev
-    aws_credentials: &aws_cred
-      aws_access_key: "{{ accesskey }}"
-      aws_secret_key: "{{ secretkey }}"
-      region: sa-east-1
-    elasticache_instance_name: Blog-study-Maica1-sessions
-    elasticache_node_type: cache.t3.micro
-    elasticache_num_nodes: 2
-    efs_performance_mode: generalPurpose
-
-  vars_files:
-    - ../vault/aws_credentials.yml
-
-  pre_tasks:
-
-  - name: Verify if we have aws_cli installed
-    ansible.builtin.stat:
-      path: /usr/local/aws-cli/v2/current
-    register: is_awscli_installed
-
-  - name: Download aws_cli
-    ansible.builtin.unarchive:
-      src: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
-      dest: /tmp/
-      remote_src: yes
-      creates: /tmp/aws
-    when: is_awscli_installed.stat.islnk is not defined
-    register: aws_cli_downloaded
-
-  - name: install aws_cli
-    ansible.builtin.shell: /tmp/aws/install
-    when: is_awscli_installed.stat.islnk is not defined
-
-  - name: Configure AWS.
-    shell: aws configure set {{ item.key }} {{ item.value }} --profile blog-study
-    # no_log: True
-    with_dict:
-      aws_access_key_id: "{{ accesskey }}"
-      aws_secret_access_key: "{{ secretkey }}"
-      region: "{{ aws_credentials.region | default('sa-east-1')}}"
-      format: "json"
-    changed_when: false
-    tags: auth
-
-  tasks:
-  # ansible-galaxy collection install amazon.aws community.general ansible.posix
-
-  - name: Create VPC for project
-    tags: auth
-    amazon.aws.ec2_vpc_net:
-      state: "{{ DESTROY is not defined | ternary('present','absent') }}"
-      name: VPC-Study-Maica1
-      cidr_block: 10.10.0.0/16
-      ipv6_cidr: True
-      dns_support: true
-      dns_hostnames: true
-      <<: *aws_cred
-      tags:
-        <<: *tags 
-        name: VPC-Study-Maica1
-    register: PROJECT_VPC
-
-  - name: Create public subnets
-    amazon.aws.ec2_vpc_subnet:
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      state: "{{ DESTROY is not defined | ternary('present','absent') }}"
-      cidr: "{{ item.1 }}"
-      az: "{{ item.2 }}"
-      map_public: "true"
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        Name: "{{ item.0 }}"
-        publicly_accessible: "true"
-      # assign_instances_ipv6: true
-      # ipv6_cidr:  /64
-    loop:
-    - ["sn-Pub-AZ-A","10.10.0.0/24","sa-east-1a"]
-    - ["sn-Pub-AZ-B","10.10.1.0/24","sa-east-1b"]
-    register: PROJECT_PUBLIC_SUBNETS
-  
-  - name: Create private subnets
-    tags: auth
-    amazon.aws.ec2_vpc_subnet:
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      state: "{{ DESTROY is not defined | ternary('present','absent') }}"
-      cidr: "{{ item.1 }}"
-      az: "{{ item.2 }}"
-      map_public: "false"
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        Name: "{{ item.0 }}"
-        publicly_accessible: "false"
-      # assign_instances_ipv6: true
-      # ipv6_cidr:  /64
-    loop:
-    - ["sn-Priv-AZ-A","10.10.254.0/24","sa-east-1a","false"]
-    - ["sn-Priv-AZ-B","10.10.253.0/24","sa-east-1b","false"]
-    register: PROJECT_PRIVATE_SUBNETS
-
-  - name: set PRIVATE_SUBNETS as a fact
-    ansible.builtin.set_fact:
-      PRIVATE_SUBNETS: "{{ PROJECT_PUBLIC_SUBNETS.results | community.general.json_query('[].subnet.id') }}"
-
-  - name: Create Internet gateway
-    amazon.aws.ec2_vpc_igw:
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      state: present
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        name: IGW-Estudos-Maica1
-    register: igw
-
-  - name: Set up public subnet route table
-    amazon.aws.ec2_vpc_route_table:
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      tags:
-        <<: *tags
-        Name: Public
-      subnets: "{{ PROJECT_PUBLIC_SUBNETS.results | community.general.json_query('[].subnet.id') }}"
-      routes:
-        - dest: 0.0.0.0/0
-          gateway_id: "{{ igw.gateway_id }}"
-        - dest: ::/0
-          gateway_id: "{{ igw.gateway_id }}"
-      <<: *aws_cred
-    register: public_route_table
-
-  - name: Create NAT gateway
-    amazon.aws.ec2_vpc_nat_gateway:
-      subnet_id: "{{ PROJECT_PUBLIC_SUBNETS.results.0.subnet.id }}"
-      state: present
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        name: NATGW-Estudos-Maica1
-      connectivity_type: "public"
-      if_exist_do_not_create: true
-      wait: true
-    register: natgw
-
-  - name: Set up private subnet route table
-    amazon.aws.ec2_vpc_route_table:
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      tags:
-        <<: *tags
-        Name: Private
-      subnets: "{{ PROJECT_PRIVATE_SUBNETS.results | community.general.json_query('[].subnet.id') }}"
-      routes:
-        - dest: 0.0.0.0/0
-          gateway_id: "{{ natgw.nat_gateway_id }}"
-        # - dest: ::/0
-        #   gateway_id: "{{ natgw.nat_gateway_id }}"
-      <<: *aws_cred
-    register: private_route_table
-
-  - name: Create sg for web servers
-    amazon.aws.ec2_security_group:
-      name: "Blog-Study-Maica1-web"
-      description: Allow ssh and web access to internet
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      rules:
-        - rule_desc: allow all on port 80
-          proto: tcp
-          ports: [80]
-          cidr_ip: 0.0.0.0/0
-        - rule_desc: allow all on port 443
-          proto: tcp
-          ports: [443]
-          cidr_ip: 0.0.0.0/0
-        - rule_desc: allow my ssh
-          proto: tcp
-          ports: [22]
-          cidr_ip: [130.41.92.177/32,201.86.49.48/32]
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        name: "Blog-Study-Maica1-web"
-    register: sg_web
-
-  - name: Set security_group id as fact
-    ansible.builtin.set_fact:
-      sg_web_id: "{{ sg_web.group_id }}"
-  
-  - name: Create sg for ElastiCache
-    amazon.aws.ec2_security_group:
-      name: "Blog-Study-Maica1-sessions"
-      description: allow access from web-server to ElastiCache
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      rules:
-        - rule_desc: allow memcache port to webservers
-          proto: tcp
-          ports: [11211]
-          cidr_ip: 0.0.0.0/0
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        name: "Blog-Study-Maica1-web"
-
-  - name: Check if ElastiCache Subnet Group exists
-    ansible.builtin.command: >
-      aws elasticache describe-cache-subnet-groups
-      --cache-subnet-group-name Cache-sessions-study-Maica1
-      --region {{ aws_credentials.region }} --profile blog-study
-    register: elasticache_subnet_group_info
-    ignore_errors: true
-
-  - name: Create ElastiCache Subnet Group
-    ansible.builtin.command:
-      cmd: >
-        aws elasticache create-cache-subnet-group 
-        --cache-subnet-group-name Cache-sessions-study-Maica1
-        --cache-subnet-group-description "SN group for wp elasticache"
-        --subnet-ids {{ PROJECT_PRIVATE_SUBNETS.results | community.general.json_query('[].subnet.id') | join(' ') }}
-        --region {{ aws_credentials.region | default ('sa-east-1') }} 
-        --profile blog-study
-    register: elasticache_subnet_group
-    when: elasticache_subnet_group_info.failed
-
-  - name: Check if ElastiCache Cluster exists
-    ansible.builtin.shell: >
-      aws elasticache describe-cache-clusters
-      --cache-cluster-id {{ elasticache_instance_name }}
-      --region {{ aws_credentials.region }} --profile blog-study  | grep 'Address' | cut -d: -f2 | tr -d ' ' | tr -d ','
-    register: elasticache_cluster_info
-    failed_when: "'CacheCluster not found:' in elasticache_cluster_info.stderr"
-    ignore_errors: true
-
-  - name: Create Elasticache instance
-    ansible.builtin.command:
-      cmd:
-       aws elasticache create-cache-cluster --cache-cluster-id {{ elasticache_instance_name }} 
-       --engine memcached --cache-node-type {{ elasticache_node_type }} --num-cache-nodes 2
-       --az-mode 'cross-az' --preferred-availability-zones "sa-east-1a" "sa-east-1b" 
-       --cache-subnet-group-name "Cache-sessions-study-Maica1"
-       --region {{ aws_region | default ('sa-east-1')}}
-       --port {{ elasticache_port | default('11211') }} 
-       --security-group-ids {{ sg_web.group_id }}
-       --profile blog-study
-    register: elasticache_response
-    when: elasticache_cluster_info.failed
- 
-  - name: Create sg for efs filesystem
-    amazon.aws.ec2_security_group:
-      name: "Blog-study-Maica1-storage"
-      description: Allow all traffic btw webservers and efs
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      rules:
-        - rule_desc: allow all traffic
-          proto: all
-          group_id: "{{ sg_web.group_id }}"
-      <<: *aws_cred
-      tags:
-        <<: *tags
-        name: "Blog-Study-Maica1-web"
-    register: efs_sg
-  
-  - name: Check if EFS exists
-    tags: auth
-    ansible.builtin.command: >
-     aws efs  describe-file-systems --creation-token {{ efs_creation_token }}
-     --region {{ aws_credentials.region }} --profile blog-study
-    register: efs_info
-    failed_when: "'\"FileSystems\": []' in efs_info.stdout"
-    ignore_errors: true
-
-  - name: Create EFS
-    tags: auth
-    ansible.builtin.command: >
-     aws efs create-file-system --creation-token {{ efs_creation_token }}
-     --performance-mode {{ efs_performance_mode }} --no-encrypted --no-backup
-     --region {{ aws_credentials.region }} --profile blog-study
-    register: efs_response
-    when: efs_info.failed
-
-  - name: Triage efs_info variable
-    tags: auth
-    when: efs_info is not failed
-    ansible.builtin.set_fact:
-        efs_info_fs_id: "{{ efs_info.stdout | from_json | json_query('FileSystems[0].FileSystemId') }}"
-  
-  - name: Triage efs_response variable
-    tags: auth
-    when: efs_response is not skipped
-    ansible.builtin.set_fact:
-        efs_create_fs_response: "{{ efs_response.stdout |  from_json | json_query('FileSystemId') }}"
-
-  - name: Set FilesystemId as a fact
-    tags: auth
-    ansible.builtin.set_fact:
-        efs_file_system_id: "{{ (efs_info is failed ) | ansible.builtin.ternary(efs_create_fs_response, efs_info_fs_id ) }}"
-
-  - name: Check existing EFS Mount Targets
-    ansible.builtin.command: >
-      aws efs describe-mount-targets
-      --file-system-id {{ efs_file_system_id }}
-      --region {{ aws_credentials.region }} --profile blog-study
-    register: existing_mount_targets
-
-  - name: Wait for resource to be created
-    ansible.builtin.pause:
-      minutes: 1
-
-  - name: Create EFS Mount Targets
-    tags: auth
-    ansible.builtin.command: >
-      aws efs create-mount-target
-      --file-system-id {{ efs_file_system_id }}
-      --security-group {{ efs_sg.group_id }}
-      --subnet-id {{ item }}
-      --region {{ aws_credentials.region }}    
-      --profile blog-study
-    loop: "{{ PROJECT_PRIVATE_SUBNETS.results | community.general.json_query('[].subnet.id') | list }}"
-    when: "item not in  (existing_mount_targets.stdout | from_json | json_query('MountTargets[*].SubnetId'))"
-
-  - name: launching ec2 instance on AWS
-    amazon.aws.ec2_instance:
-      key_name: "elven-blog-key"
-      instance_type: t2.micro
-      image_id: ami-0424a16d0e63b113b
-      wait: yes
-      exact_count: 1
-      tags:
-        <<: *tags
-        Name: "vpc-blog-elven"
-      state: "{{ DESTROY is not defined | ternary('running','terminated') }}"
-      security_group : "{{ sg_web.group_id }}"
-      vpc_subnet_id: "{{ PROJECT_PUBLIC_SUBNETS.results.0.subnet.id }}"
-      network:
-        assign_public_ip: true
-        delete_on_termination: true
-      <<: *aws_cred
-    register: ec2
-
-  - name: "Add new Instance to Host group"
-    ansible.builtin.add_host:
-       hostname: "{{ item.network_interfaces[0].association.public_dns_name }}"
-       groupname: webserver
-    loop: "{{ ec2.instances }}"
-    when: &DESTROY DESTROY is not defined
-
-  - name: "Wait for SSH in Instance"
-    ansible.builtin.wait_for:
-             host: "{{ item.network_interfaces[0].association.public_dns_name }}"
-             port: 22
-             state: started
-    loop: "{{ ec2.instances }}"
-    when: *DESTROY
-
+---
+# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker
+# ansible-galaxy role install  systemli.letsencrypt
+###############################################################################################
 - name: ">>> INSTALL WORDPRESS BLOG <<<"
-  hosts: webserver
+  hosts: web_servers
   gather_facts: true
 
   vars:
-   ROOT_DIR: /var/www/html/blog
-   LOG_DIR: /var/log/nginx/
-   PACKAGE_LIST:
-   - gcc
-   - nginx
-   - php
-   - php-devel
-   - php-pear
-   - mysql
-   - php8.2-mysqlnd
-   - memcached
-   - memcached-devel
-   - libmemcached-awesome
-   - libmemcached-awesome-devel 
-   - cyrus-sasl-devel
-   - libevent-devel 
-   - amazon-efs-utils
-#   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
+    elasticache_instance_name: wordpress-memcached
+    LOG_DIR: /var/log/nginx/
+    DOMAIN: maica1.site
+    PACKAGE_LIST:
+      - gcc
+      - nginx
+      - php
+      - php-devel
+      - php-pear
+      - mysql
+      - php8.2-mysqlnd
+      - memcached
+      - memcached-devel
+      - libmemcached-awesome
+      - libmemcached-awesome-devel
+      - cyrus-sasl-devel
+      - libevent-devel
+      - amazon-efs-utils
+    ROOT_DIR: /var/www/html/blog/
+  vars_files:
+    - ../vault/aws_credentials.yml
+    #   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
   roles:
-  - { role: install_packages }
-  - { role: create_dirs, DIRS: [ "/uploads", "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+    - { role: install_packages }
+    - { role: create_dirs, DIRS: [ "/uploads", "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
+    - { role: systemli.letsencrypt, letsencrypt_cert: { name: "{{ ansible_hostname }}", domains: ["{{ ansible_hostname }}.{{ DOMAIN }}"], challenge: http, http_auth: nginx, services: nginx }, letsencrypt_account_email: 'test@test.com.br' }
+    # TODO: Automate email via var
   pre_tasks:
-
-    - name: Set instance ip as fact
-      ansible.builtin.set_fact:
-        INSTANCE_FQDN: "{{ inventory_hostname }}"
-        INSTANCE_IP: "{{ ansible_default_ipv4.address }}"
-      delegate_facts: true
-      delegate_to: localhost
+    - name: gather ec2_info
+      amazon.aws.ec2_metadata_facts:
 
     - name: Download mysql repo
+      check_mode: false
       ansible.builtin.command:
         cmd: wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
         chdir: /tmp/
         creates: /tmp/mysql57-community-release-el7-11.noarch.rpm
 
     - name: Import mysql repo key
+      check_mode: false
       ansible.builtin.rpm_key:
         state: present
-        key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022 
+        key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 
     - name: add mysql repo
+      check_mode: false
       ansible.builtin.yum:
-        name: /tmp/mysql57-community-release-el7-11.noarch.rpm 
+        name: /tmp/mysql57-community-release-el7-11.noarch.rpm
         update_cache: true
         disable_gpg_check: yes
         state: present
       become: true
 
-  tasks: 
-
-
-  
-  - name: Create blog.conf file
-    ansible.builtin.template: &nginx_permission
-      src: blog.conf.j2
-      dest: /etc/nginx/conf.d/blog.conf
-      owner: nginx
-      group: nginx
-      mode: 0744
- 
-  - name: Mount EFS dir
-    ansible.posix.mount:
-      src: "{{ hostvars['localhost']['efs_file_system_id']}}:/"
-      path: /uploads
-      opts: tls,defaults,nofail
-      state: mounted
-      fstype: efs
-
-  - name: Create a symbolic link
-    ansible.builtin.file:
-      <<: *nginx_permission
-      src: /uploads
-      dest: /var/www/html/blog/uploads
-      state: link      
-  
-  - name: Create index file
-    ansible.builtin.template:
-      <<: *nginx_permission
-      src: index.html.j2
-      dest: /var/www/html/blog/hello_world.html
-
-  - name: Substitute user and group on php config
-    ansible.builtin.lineinfile:
-      path: /etc/php-fpm.d/www.conf
-      regexp: "{{ item }} =.*"
-      line: "{{ item }} = nginx"
-    loop:
-    - user
-    - group
-    # - listen.owner
-    # - listen.group
-
-  - name: download and extract wordpress
-    ansible.builtin.unarchive:
-      <<: *nginx_permission
-      src: https://br.wordpress.org/latest-pt_BR.tar.gz
-      dest: /var/www/html/
-      validate_certs: false
-      remote_src: yes
-      creates: /var/www/html/blog/index.php
-    register: downloaded_wp
-  
-  - name: rename wordpress dir
-    ansible.builtin.copy:
-      <<: *nginx_permission
-      src: /var/www/html/wordpress/
-      dest: /var/www/html/blog
-      remote_src: yes
-    when: downloaded_wp is not skipped
-
-  - name: remove old wordpress dir
-    ansible.builtin.file:
-      path: /var/www/html/wordpress
-      state: absent
-    when: downloaded_wp is not skipped
-
-  - name: Configure memcached lib for php
-    ansible.builtin.shell:
-      cmd: |
-        /usr/bin/yes 'no' | pecl install igbinary
-        echo 'extension=igbinary.so' > /etc/php.d/30-igbinary.ini
-
-        /usr/bin/yes 'no' | pecl install msgpack
-        echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
-        /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
-        echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
-
-  - name: Configure memcache use
-    ansible.builtin.lineinfile:
-      path: /etc/php.ini
-      regexp: "{{ item.0 }} =.*"
-      line: "{{ item.0 }} = {{ item.1 }}"
-      insertafter: "[Session]"
-    loop:
-    - ["session.save_handler","memcached"]
-    - ["session.save_path", "blog-study-maica1-sessoes.ntavis.cfg.sae1.cache.amazonaws.com:11211"]
-
-        
-  - name: Start and enable services
-    ansible.builtin.service:
-      name: "{{ package }}"
-      state: started
-      enabled: true
-    loop: 
-    - nginx
-    - php-fpm
-    loop_control:
-      loop_var: package
-
-- name: ">>> VALIDATE WEBPAGE ACCESS <<<"
-  hosts: localhost
-  gather_facts: false
-
   tasks:
 
-  - name: Access homepage
-    ansible.builtin.uri:
-      url: "http://{{ hostvars['localhost']['INSTANCE_FQDN'] }}/hello_world.html" 
-    register: access
-    until: "access.status == 200"
-    retries: 10
-    delay: 5
+    - name: Create blog.conf file
+      ansible.builtin.template: &nginx_permission
+        src: blog.conf.j2
+        dest: /etc/nginx/conf.d/blog.conf
+        owner: nginx
+        group: nginx
+        mode: 0744
 
-- name: ">>> CREATE RDS INSTANCE FOR WORDPRESS <<<"
+    - name: Create a symbolic link
+      tags: norun
+      ansible.builtin.file:
+        <<: *nginx_permission
+        src: /uploads
+        dest: "{{ ROOT_DIR }}/uploads"
+        state: link
+
+    - name: Create index file
+      ansible.builtin.template:
+        <<: *nginx_permission
+        src: index.html.j2
+        dest: "{{ ROOT_DIR }}/hello_world.html"
+
+    - name: Substitute user and group on php config
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.lineinfile:
+        path: /etc/php-fpm.d/www.conf
+        regexp: "{{ item }} =.*"
+        line: "{{ item }} = nginx"
+      loop:
+      - user
+      - group
+
+    - name: download and extract wordpress
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.unarchive:
+        <<: *nginx_permission
+        src: https://br.wordpress.org/latest-pt_BR.tar.gz
+        dest: /var/www/html/
+        validate_certs: false
+        remote_src: yes
+        creates: "{{ ROOT_DIR }}/index.php"
+      register: downloaded_wp
+
+    - name: rename wordpress dir
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.copy:
+        <<: *nginx_permission
+        src: /var/www/html/wordpress/
+        dest: "{{ ROOT_DIR }}"
+        remote_src: yes
+      when: downloaded_wp is not skipped
+
+    - name: remove old wordpress dir
+      ansible.builtin.file:
+        path: /var/www/html/wordpress
+        state: absent
+      when: downloaded_wp is not skipped
+
+    - name: Configure memcached lib for php
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.shell:
+        cmd: |
+          /usr/bin/yes 'no' | pecl install igbinary
+          echo 'extension=igbinary.so' > /etc/php.d/30-igbinary.ini
+
+          /usr/bin/yes 'no' | pecl install msgpack
+          echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
+          /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
+          echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
+
+    - name: Check if ElastiCache Cluster exists
+      ansible.builtin.shell: >
+          aws elasticache describe-cache-clusters
+          --cache-cluster-id {{ elasticache_instance_name }}
+          --region {{ aws_credentials.region }} --profile blog-study  | grep 'Address' | cut -d: -f2 | tr -d ' ' | tr -d ','
+      register: elasticache_cluster_address
+      failed_when: "'CacheCluster not found:' in elasticache_cluster_address.stderr"
+      delegate_to:  localhost
+      delegate_facts: false
+      # ignore_errors: true
+
+    - name: Configure memcache use
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.lineinfile:
+        path: /etc/php.ini
+        regexp: "{{ item.0 }} =.*"
+        line: "{{ item.0 }} = {{ item.1 }}"
+        insertafter: "[Session]"
+      loop:
+      - ["session.save_handler","memcached"]
+      - ["session.save_path", "{{ elasticache_cluster_address.stdout }}:11211"]
+
+
+    - name: Start and enable services
+      ignore_errors: "{{ ansible_check_mode }}"
+      ansible.builtin.service:
+        name: "{{ package }}"
+        state: restarted
+        enabled: true
+      loop:
+      - nginx
+      - php-fpm
+      loop_control:
+        loop_var: package
+
+# - name: ">>> VALIDATE WEBPAGE ACCESS <<<"
+#   hosts: localhost
+#   gather_facts: false
+#   become: false
+
+#   vars:
+#     DOMAIN: "maica1.site"
+
+#   tasks:
+
+#   - name: Access homepage via purchased dns
+#     ignore_errors: "{{ ansible_check_mode }}"
+#     ansible.builtin.uri:
+#       url: "http://{{ hostvars[item]['ansible_hostname'] + '.' + DOMAIN }}/hello_world.html"
+#     register: access
+#     until: "access.status == 200"
+#     retries: 10
+#     delay: 5
+#     loop: "{{ groups['web_servers'] }}"
+
+#   - name: Access homepage via aws dns
+#     ignore_errors: "{{ ansible_check_mode }}"
+#     ansible.builtin.uri:
+#       url: "http://{{ hostvars[item]['ansible_ec2_public_hostname'] }}/hello_world.html"
+#       validate_certs: false
+#     register: access
+#     until: "access.status == 200"
+#     retries: 10
+#     delay: 5
+#     loop: "{{ groups['web_servers'] }}"
+###############################################################################################
+- name: ">>> RDS INFO <<<"
   hosts: localhost
   gather_facts: false
-  vars:
-    aws_credentials: 
-      aws_access_key: "{{ accesskey }}"
-      aws_secret_key: "{{ secretkey }}"
-      region: sa-east-1
+  # tags: norun
+
   vars_files:
-    - ../vault/aws_credentials.yml  
+    - ../vault/aws_credentials.yml
 
   tasks:
+  - name: Get all RDS instances
+    register: database_info
+    no_log: true
+    amazon.aws.rds_instance_info:
+      region: "{{ aws_credentials.region }}"
+      access_key: "{{ aws_credentials.accesskey }}"
+      secret_key: "{{ aws_credentials.secretkey }}"
 
-  - name: Create sg for database
-    amazon.aws.ec2_security_group:
-      name: "Blog-study-Maica1-db"
-      description: Allow web-server sg to access rds instance
-      vpc_id: "{{ PROJECT_VPC.vpc.id }}"
-      <<: *aws_cred
-      rules:
-        - rule_desc: allow db traffic to sg_web
-          proto: tcp
-          ports: [3306]
-          group_id: "{{ hostvars['localhost']['sg_web_id'] }}"
-      tags:
-        <<: *tags
-        name: "Blog-Study-Maica1-web"
-    register: sg_db
-
-  - name: Check existing DB Subnet Groups
-    command: >
-      aws rds describe-db-subnet-groups --db-subnet-group-name sng-db
-      --region {{ aws_credentials.region }} --profile blog-study
-    register: existing_db_subnet_groups
-    ignore_errors: true
-
-  - name: Create DB Subnet Group if not exists
-    command: >
-      aws rds create-db-subnet-group --db-subnet-group-name sng-db
-      --db-subnet-group-description "Your subnet group description"
-      --subnet-ids {{ PRIVATE_SUBNETS | join(' ') }}
-      --region {{ aws_credentials.region }}  --profile blog-study
-    when: "'DBSubnetGroups' not in existing_db_subnet_groups.stdout"
-
-  - name: Create wordpress db
-    amazon.aws.rds_instance:
-      db_instance_identifier: Blog-Study-Maica1-rds
-      tags:
-        <<: *tags
-        name: "Blog-Study-Maica1-rds"
-      <<: *aws_cred
-      multi_az: true
-      engine: mysql
-      engine_version: 5.7.44
-      instance_type: db.t3.micro
-      username:  "{{ rds_user }}"
-      password: "{{ rds_password }}"
-      publicly_accessible: false
-      allocated_storage: 20
-      storage_type: gp2
-      backup_retention_period: 0
-      db_subnet_group_name: sng-db
-      vpc_security_group_ids : ["{{ hostvars['localhost']['sg_web_id'] }}"]
-      auto_minor_version_upgrade: true
-      apply_immediately: true
-    register: aws_rds
-
-  - name: Set RDS addresses as fact
+  - name: Save db info
+    no_log: true
     ansible.builtin.set_fact:
-      RDS_ENDPOINT: "{{ aws_rds.endpoint.address }}"
-    delegate_facts: true
-    delegate_to: localhost    
-
+      db_info: "{{ database_info }}"
+###############################################################################################
 - name: ">>> CONFIGURE WORDPRESS <<<"
-  hosts: webserver
+  hosts: web_servers
   gather_facts: true
+  vars:
+    ROOT_DIR: /var/www/html/blog
+    DOMAIN: maica1.site
   vars_files:
-    - ../vault/aws_credentials.yml  
+    - ../vault/aws_credentials.yml
+  pre_tasks:
+    - name: Copy wp-cli
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/wp-cli.phar"
+        dest: /usr/local/bin/wp
+        mode: '755'
+    - name: Register salt for config file
+      # no_log: true
+      ansible.builtin.uri: 
+        url: https://api.wordpress.org/secret-key/1.1/salt/
+        return_content: true
+      register: salt
   tasks:
 
-  - name: Create wp config file
-    ansible.builtin.template:
-      <<: *nginx_permission
-      src: wp-config.php.j2
-      dest: /var/www/html/blog/wp-config.php
+    - name: Create wp config file
+      ansible.builtin.template:
+        <<: *nginx_permission
+        src: wp-config.php.j2
+        dest: "{{ ROOT_DIR }}/wp-config.php"
+        
+    - name: Install wordpress blog
+      become_user: nginx
+      throttle: 1
+      ansible.builtin.command:
+        chdir: "{{ ROOT_DIR }}"
+        cmd: wp core install --url={{ ansible_hostname + '.' + DOMAIN}} --title="Desafio final elvenworks" --admin_user={{ wp_admin_password }} --admin_password={{ wp_admin_password }} --admin_email=test@test.com
+

@@ -1,0 +1,18 @@
+---
+name: Integration
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - ".*"
+      - ".github/**"
+      - "README.md"
+
+jobs:
+  integration:
+    name: Integration
+    uses: systemli/github-ansible-workflow/.github/workflows/ansible-integration-workflow.yaml@v1.2.0
+    with:
+      distros: '[ "debian11", "debian12", "centos7", "ubuntu2204" ]'

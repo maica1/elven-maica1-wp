@@ -1,0 +1,70 @@
+---
+- name: Install packages
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+
+- name: LetsEncrypt DNS Challenge
+  when: letsencrypt_dns_challenge
+  block:
+    - name: Install certbot DNS challenge helper script
+      ansible.builtin.template:
+        src: certbot-dns-hook.sh.j2
+        dest: /usr/local/bin/certbot-dns-hook.sh
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create letsencrypt directory
+      ansible.builtin.file:
+        dest: "{{ letsencrypt_directory }}/keys"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Install certbot DNS challenge nsupdate key
+      ansible.builtin.copy:
+        content: "{{ letsencrypt_ddns_key }}"
+        dest: "{{ letsencrypt_directory }}/keys/ddns_update.key"
+        owner: root
+        group: root
+        mode: "0400"
+      when: letsencrypt_ddns_key|default()
+
+    - name: Install certbot DNS challenge nsupdate private key
+      ansible.builtin.copy:
+        content: "{{ letsencrypt_ddns_privkey }}"
+        dest: "{{ letsencrypt_directory }}/keys/ddns_update.private"
+        owner: root
+        group: root
+        mode: "0400"
+      when: letsencrypt_ddns_privkey|default()
+
+- name: Add group
+  when: letsencrypt_group
+  block:
+    - name: Add system group 'letsencrypt'
+      ansible.builtin.group:
+        name: letsencrypt
+        system: true
+    - name: Adjust permissions for certificate directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: letsencrypt
+        mode: "0750"
+      with_items:
+        - "{{ letsencrypt_directory }}/archive"
+        - "{{ letsencrypt_directory }}/live"
+
+- name: Check if letsencrypt_account_email is set
+  ansible.builtin.fail:
+    msg: "Error: either set letsencrypt_account_email or add '--register-unsafely-without-email' to letsencrypt_opts_extra"
+  when:
+    - not '--register-unsafely-without-email' in letsencrypt_opts_extra
+    - not letsencrypt_account_email
+  tags:
+    - molecule-notest
+
+- name: Import account setup tasks
+  ansible.builtin.import_tasks: account.yml

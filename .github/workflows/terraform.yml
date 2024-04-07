@@ -33,7 +33,7 @@ jobs:
         ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
         SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
       run: >
-        sed -i -e  "s/access_key = .*/access_key = ${AWS_ACCESS_KEY}/" -e "s/secret_key = .*/secret_key = ${AWS_SECRET_KEY}/" TERRAFORM/backend.tf
+        sed -i -e  "s/access_key = .*/access_key = $AWS_ACCESS_KEY/" -e "s/secret_key = .*/secret_key = $AWS_SECRET_KEY/" TERRAFORM/backend.tf
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init

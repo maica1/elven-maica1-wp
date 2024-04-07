@@ -32,7 +32,7 @@ jobs:
 
     - name: Set  backend.tf
       run: |
-        cat > backend.tf << EOF
+        cat > TERRAFORM/backend.tf << EOF
         terraform {
           backend "s3" {
             bucket  = "${{ env.S3_TF_BUCKET }}"

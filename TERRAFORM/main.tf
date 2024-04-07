@@ -59,19 +59,25 @@ resource "aws_vpc_security_group_egress_rule" "hm-erules" {
 resource "ansible_group" "hm" {
   name = "hm"
 }
-module "healthmonitor" {
-  source             = "./MODULES/healthmonitor"
-  ec2_instance_name  = "hm"
-  aws_region         = var.aws_region
-  ec2_ami            = var.ec2_ami
-  subnet_id          = module.main_vpc.public_subnets
-  ec2_instance_count = 1
-  security_group     = [aws_security_group.hm_sg.id]
+resource "aws_instance" "hm" {
+  ami                         = var.ec2_ami
+  instance_type               = var.ec2_instance_type
+  subnet_id                   = module.main_vpc.public_subnets[0]
+  vpc_security_group_ids     = [aws_security_group.hm_sg.id]
+
+  key_name                    = var.ssh_key_name
+  associate_public_ip_address = true
+
+  tags = {
+    Name    = "hm-1"
+    env     = "study"
+    cost    = "free-tier"
+    project = "wp-Maica1"
+  }  
 }
 
 resource "ansible_host" "hm" {
-  count  = 1
-  name   = module.healthmonitor.public_dns[count.index]
+  name   =aws_instance.hm.public_dns
   groups = ["hm"]
 }
 resource "aws_security_group" "memcache_sg" {
@@ -80,14 +86,14 @@ resource "aws_security_group" "memcache_sg" {
   vpc_id      = module.main_vpc.vpc_id
 
   ingress {
-    from_port       = 11211
-    to_port         = 11211
+    from_port       = var.memcached_port
+    to_port         = var.memcached_port
     protocol        = "tcp"
     security_groups = [aws_security_group.ws_sg.id]
   }
   ingress {
-    from_port       = 11211
-    to_port         = 11211
+    from_port       = var.memcached_port
+    to_port         = var.memcached_port
     protocol        = "udp"
     security_groups = [aws_security_group.ws_sg.id]
   }
@@ -105,10 +111,10 @@ resource "aws_elasticache_subnet_group" "memcache-wp" {
 resource "aws_elasticache_cluster" "memcached" {
   cluster_id           = "wordpress-memcached"
   engine               = "memcached"
-  node_type            = "cache.t3.micro"
-  num_cache_nodes      = 2
+  node_type            = var.memcached_node_size
+  num_cache_nodes      = var.memcached_n_nodes
   az_mode              = "cross-az"
-  parameter_group_name = "default.memcached1.6"
+  parameter_group_name = var.memcached_parameter_group_name
   security_group_ids   = [aws_security_group.memcache_sg.id]
   subnet_group_name    = aws_elasticache_subnet_group.memcache-wp.name
 }
@@ -132,6 +138,8 @@ locals {
     { port = "22", target = "${data.external.my_ip.result.ip}/32" },
     { port = "80", target = "0.0.0.0/0" },
     { port = "9100", target = "${aws_security_group.hm_sg.id}" },
+    { port = "9115", target = "${aws_security_group.hm_sg.id}" },
+    { port = "9113", target = "${aws_security_group.hm_sg.id}" },
     { port = "443", target = "0.0.0.0/0" },
     { port = "2049", target = "${aws_security_group.efs_sg.id}" }
 
@@ -190,21 +198,44 @@ resource "aws_efs_mount_target" "mount_target" {
 resource "ansible_group" "web_servers" {
   name = "web_servers"
 }
+resource "aws_instance" "ws" {
+  count                       = var.ec2_instance_count
+  ami                         = var.ec2_ami
+  instance_type               = var.ec2_instance_type
+  subnet_id                   = module.main_vpc.public_subnets[count.index]
+  vpc_security_group_ids      = [aws_security_group.ws_sg.id]
+  key_name                    = var.ssh_key_name
+  associate_public_ip_address = true
 
-module "web_server" {
-  source             = "./MODULES/ec2"
-  aws_region         = var.aws_region
-  ec2_ami            = var.ec2_ami
-  subnet_id          = module.main_vpc.public_subnets
-  ec2_instance_name  = "ws"
-  ec2_instance_count = var.ec2_instance_count
-  security_group     = [aws_security_group.ws_sg.id]
-  efs_id             = aws_efs_file_system.efs.id
+  tags = {
+    Name    = "ws-${count.index + 1}"
+    env     = "study"
+    cost    = "free-tier"
+    project = "wp-Maica1"
+  }
+
+  depends_on = [
+      aws_efs_mount_target.mount_target
+    ]
+  provisioner "remote-exec" {
+    inline = [
+      "sudo yum install -q -y amazon-efs-utils && echo 'pass' || true",
+      "sudo mkdir -p /uploads && sudo chown -R ec2-user:ec2-user /uploads && echo '${aws_efs_file_system.efs.id}' || true",
+      "sudo mount -t efs ${aws_efs_file_system.efs.id}:/ /uploads  && echo 'pass' ",
+    ]
+  }
+
+  connection {
+    type  = "ssh"
+    user  = "ec2-user"
+    agent = true
+    host  = self.public_ip
+  }
 }
 
 resource "ansible_host" "ws" {
   count  = var.ec2_instance_count
-  name   = module.web_server.public_dns[count.index]
+  name   = aws_instance.ws[count.index].public_dns
   groups = ["web_servers"]
 }
 
@@ -220,10 +251,10 @@ resource "aws_route53_zone" "main" {
 resource "aws_route53_record" "www" {
   count      = var.ec2_instance_count
   zone_id    = aws_route53_zone.main.zone_id
-  name       = join(".", [split(".", module.web_server.private_dns[count.index])[0], "maica1.site"])
+  name       = join(".", [split(".", aws_instance.ws[count.index].private_dns)[0], "maica1.site"])
   type       = "A"
   ttl        = 300
-  records    = [module.web_server.public_ip[count.index]]
+  records    = [aws_instance.ws[count.index].public_ip]
   depends_on = [aws_route53_zone.main]
 }
 
@@ -287,7 +318,7 @@ resource "aws_lb" "alb" {
 resource "aws_lb_target_group_attachment" "wordpress_instances_attachment" {
   count            = var.ec2_instance_count
   target_group_arn = aws_lb_target_group.wordpress_target_group.arn
-  target_id        = module.web_server.id[count.index]
+  target_id        = aws_instance.ws[count.index].id
   port             = 443
 }
 

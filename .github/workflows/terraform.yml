@@ -32,10 +32,9 @@ jobs:
 
     - name: Set ENV variables on backend.tf
       run: |
-        sed -i -e  "s/access_key = .*/access_key = ${{ env.ACCESS_KEY }}/" -e "s/secret_key = .*/secret_key = ${{ env.SECRET_KEY }}/" TERRAFORM/backend.tf
+        sed  -e  "s/access_key = .*/access_key = ${{ secrets.AWS_ACCESS_KEY }}/" -e "s/secret_key = .*/secret_key = ${{ secrets.AWS_SECRET_KEY }}/" TERRAFORM/backend.tf
         cat TERRAFORM/backend.tf
-        echo ${{secrets.AWS_ACCESS_KEY}} | sed 's/./& /g' 
-
+        
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
       run: cd TERRAFORM && terraform init

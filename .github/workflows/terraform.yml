@@ -36,7 +36,7 @@ jobs:
         cat > TERRAFORM/backend.tf << EOF
         terraform {
           backend "s3" {
-            bucket  = "${{ env.S3_TF_BUCKET }}"
+            bucket  = "${{ vars.S3_TF_BUCKET }}"
             key     = "terraform.tfstate"
             encrypt = true
             region  = "${REGION}"

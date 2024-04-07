@@ -12,7 +12,9 @@ jobs:
     name: 'Terraform'
     runs-on: ubuntu-latest
     environment: FINAL_PROJECT
-
+    env:
+      ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
+      SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
@@ -29,11 +31,8 @@ jobs:
         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
     - name: Set ENV variables on backend.tf
-      env:
-        ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
-        SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
       run: >
-        sed -i -e  "s/access_key = .*/access_key = ${ACCESS_KEY}/" -e "s/secret_key = .*/secret_key = ${SECRET_KEY}/" TERRAFORM/backend.tf ;
+        sed -i -e  "s/access_key = .*/access_key = ${{ env.ACCESS_KEY }}/" -e "s/secret_key = .*/secret_key = ${{ env.SECRET_KEY }}/" TERRAFORM/backend.tf ;
         cat TERRAFORM/backend.tf
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.

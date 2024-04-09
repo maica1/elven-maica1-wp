@@ -4,13 +4,18 @@
   gather_facts: true
   vars:
     grafana_version: "10.1.9"
+    grafana_dashboards: [3662,1860,13041]
     prometheus_version: "v2.51.1"
     prometheus_data_dir: /opt/prometheus/
     node_exporter_version: "v1.7.0"
+    install_docker: true
     PACKAGE_LIST:
-      - docker
+    - docker
   vars_files:
     - ../vault/aws_credentials.yml
+  pre_tasks:
+    - name: gather ec2_info
+      amazon.aws.ec2_metadata_facts:    
 
   roles:
     - role: create_dirs
@@ -29,39 +34,13 @@
 
 
   tasks:
-    - name: Enable docker commands without sudo
-      ansible.builtin.user:
-        user: "{{ ansible_user }}"
-        groups:  docker
-        append: true
-   
-    - name: Set user docker config
-      ansible.builtin.lineinfile:
-        line: export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
-        path: .bashrc
-
-    - name: Download docker compose
-      ansible.builtin.uri:
-        url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
-        dest: /usr/local/lib/docker/cli-plugins/docker-compose
-        owner: "{{ ansible_user }}"
-        group: "docker"
-        mode: '775'
-        status_code: [200,304]
-
-    - name: Copy docker compose to user folder
-      ansible.builtin.copy:
-        src: /usr/local/lib/docker/cli-plugins/docker-compose
-        dest: .docker/cli-plugins/docker-compose
-        remote_src: true
-
     - name: Start docker
       ansible.builtin.service:
         name: docker
         state: started
         enabled: true
 
-    - name: Create prometheus.yml  file
+    - name: Create prometheus.yml file
       ansible.builtin.template:
         src: prometheus.yml.j2
         dest: "{{ prometheus_data_dir }}prometheus.yml"
@@ -74,32 +53,65 @@
         src: docker-compose-prom.yml.j2
         dest: "{{ prometheus_data_dir }}compose/docker-compose.yml"
 
-    - name: Start Prometheus container
-      community.docker.docker_container:
-        name: prometheus
-        image: prom/prometheus:{{ prometheus_version }}
-        state: started
-        restart_policy: always
-        volumes:
-          - "{{ prometheus_data_dir  }}:/prometheus"
-          - "{{ prometheus_data_dir }}prometheus.yml:/etc/prometheus/prometheus.yml"
-        ports:
-          - "9090:9090"
-          
-    - name: Start Node Exporter container
-      community.docker.docker_container:
-        name: node_exporter
-        image: prom/node-exporter:{{ node_exporter_version }}
-        state: started
-        restart_policy: always
-        ports:
-          - "{{ node_exporter_port | default('9100') }}:9100"
+    # - name: Start Prometheus container
+    #   community.docker.docker_container:
+    #     name: prometheus
+    #     image: prom/prometheus:{{ prometheus_version }}
+    #     state: started
+    #     restart_policy: always
+    #     volumes:
+    #       - "{{ prometheus_data_dir  }}:/prometheus"
+    #       - "{{ prometheus_data_dir }}prometheus.yml:/etc/prometheus/prometheus.yml"
+    #     ports:
+    #       - "9090:9090"
+    - name: start compose
+      ansible.builtin.shell:
+        chdir: "{{ prometheus_data_dir }}compose"
+        cmd: docker compose  up --detach
+
+    # - name: Start Node Exporter container
+    #   community.docker.docker_container:
+    #     name: node_exporter
+    #     image: prom/node-exporter:{{ node_exporter_version }}
+    #     state: started
+    #     restart_policy: always
+    #     ports:
+    #       - "{{ node_exporter_port | default('9100') }}:9100"
+
+    - name: Wait for grafana  to be ready
+      ansible.builtin.pause:
+        minutes: 1
+
+    
+    - name: Create prometheus datasource      
+      community.grafana.grafana_datasource:
+        name: "prometheus"
+        ds_type: prometheus
+        ds_url: "http://{{ ansible_ec2_public_hostname }}:9090"
+        grafana_url: "http://{{ ansible_ec2_public_hostname }}:3000"
+        grafana_user: "{{ GRAFANA_ADMIN_USER }}"
+        grafana_password: "{{ GRAFANA_ADMIN_PASSWORD }}"
+        access: proxy
+        is_default: yes
+        state: present
+        tls_skip_verify: true
+    
+    - name: Import Grafana dashboards
+      community.grafana.grafana_dashboard:
+        grafana_url: "http://{{ ansible_ec2_public_hostname }}:3000"
+        dashboard_id: "{{ item }}"
+        commit_message: Updated by ansible
+        grafana_user: "{{ GRAFANA_ADMIN_USER }}"
+        grafana_password: "{{ GRAFANA_ADMIN_PASSWORD }}"
+        overwrite: yes
+        state: present
+      loop: "{{ grafana_dashboards }}"
 
 - name:  ">>> INSTALL NODE_EXPORTER ON WEB_SERVERS <<<"
   hosts: web_servers
   gather_facts: true
   vars:
-    node_exporter_version: "v1.7.0"
+    node_exporter_version: "1.7.0"
     install_docker: true
     PACKAGE_LIST:
       - docker
@@ -114,6 +126,10 @@
         GROUP: "adm"
         MODE: '774'
     - install_packages
+    - blackbox_exporter
+    - nginx_exporter
+    - systemd_exporter
+    - node_exporter
 
 
   tasks:
@@ -122,12 +138,4 @@
         name: docker
         state: started
         enabled: true
-    - name: Start Node Exporter container
-      community.docker.docker_container:
-        name: node_exporter
-        image: prom/node-exporter:{{ node_exporter_version }}
-        state: started
-        restart_policy: always
-        ports:
-          - "{{ node_exporter_port | default('9100') }}:9100"
 ...

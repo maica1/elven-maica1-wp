@@ -52,6 +52,12 @@ jobs:
         }
         EOF
         
+    - name: set up ssh
+      run: |
+        echo "${{ secrets.SSH_KEY  }}" > id_rsa
+        chmod  600 id_rsa
+
+
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
       run: cd TERRAFORM && terraform init

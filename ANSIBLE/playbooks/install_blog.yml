@@ -1,5 +1,5 @@
 ---
-# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker
+# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker prometheus.prometheus community.grafana
 # ansible-galaxy role install  systemli.letsencrypt
 ###############################################################################################
 - name: ">>> INSTALL WORDPRESS BLOG <<<"

@@ -52,6 +52,14 @@ jobs:
         }
         EOF
         
+    - name: set up ssh
+      run: |
+        echo "${{ secrets.SSH_KEY  }}" >> ~/.ssh/id_rsa
+        echo "StrictHostKeyChecking no" >> ~/.ssh/config
+        chmod -R 600 ~/.ssh
+        ssh-add  ~/.ssh/id_rsa
+
+
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
       run: cd TERRAFORM && terraform init

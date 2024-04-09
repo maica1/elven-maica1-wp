@@ -54,6 +54,7 @@ jobs:
         
     - name: set up ssh
       run: |
+        mkdir -p  ~/.ssh/
         echo "${{ secrets.SSH_KEY  }}" >> ~/.ssh/id_rsa
         echo "StrictHostKeyChecking no" >> ~/.ssh/config
         chmod -R 600 ~/.ssh

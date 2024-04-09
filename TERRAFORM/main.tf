@@ -226,9 +226,9 @@ resource "aws_instance" "ws" {
   }
 
   connection {
+    # agent       = true
     type        = "ssh"
     user        = "ec2-user"
-    agent       = true
     private_key = file("../id_rsa")
     host        = self.public_ip
   }

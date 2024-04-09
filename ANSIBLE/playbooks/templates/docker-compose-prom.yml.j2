@@ -46,6 +46,16 @@ services:
     restart: always
     volumes:
       - grafana_data:/var/lib/grafana
+  blackbox-exporter:
+    image: "prom/blackbox-exporter:latest"
+    hostname: "blackbox"
+    restart: always
+    ports:
+    - "9115:9115"
+    volumes:
+    - "./config/blackbox-exporter/blackbox-exporter.yml:/etc/prometheus/blackbox-exporter.yml"
+    command:
+    - "--config.file=/etc/prometheus/blackbox-exporter.yml"      
 volumes:
   prometheus_data:
   grafana_data:

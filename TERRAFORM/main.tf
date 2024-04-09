@@ -229,7 +229,7 @@ resource "aws_instance" "ws" {
     type        = "ssh"
     user        = "ec2-user"
     agent       = true
-    private_key = file("${path.module}/id_rsa")
+    private_key = file("../id_rsa")
     host        = self.public_ip
   }
 }

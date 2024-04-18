@@ -1,4 +1,4 @@
-name: 'Deploy Infra'
+name: 'Deploy WP'
 on:
   push:
     branches: [ "main" ]
@@ -8,6 +8,35 @@ permissions:
   contents: read
 
 jobs:
+  ansible:
+    name: Run Ansible playbook
+    runs-on: ubuntu-latest
+    environment: FINAL_PROJECT
+    steps:
+      - name: test ansible
+        uses: dawidd6/action-ansible-playbook@v2.8.0
+        with:
+          playbook: playbooks/healthmonitor.yml
+          directory: ./ANSIBLE/
+          # configuration: |
+          #   [defaults]
+          #   nocows = true
+          #   callbacks_enabled = ansible.posix.profile_tasks, ansible.posix.timer
+          #   stdout_callback = yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          known_hosts: |
+            example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+          # Optional, encrypted vault password
+          vault_password: ${{secrets.VAULT_PASSWORD}}
+          # Optional, galaxy requirements filepath
+          # requirements: galaxy-requirements.yml
+          # Optional, additional flags to pass to ansible-playbook
+          options: |
+            --inventory inventory/
+            --verbose
+            -C
+
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest

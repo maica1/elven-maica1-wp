@@ -5,8 +5,8 @@ terraform {
     encrypt = true
     region = "sa-east-1"
 
-    access_key = "${var.access_key}"
-    secret_key = "${var.secret_key}"
-
+#   CREDENTIALS PASSE FROM ENV VARS
+#    access_key =
+#    secret_key = 
   }
 }

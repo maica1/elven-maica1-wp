@@ -2,6 +2,7 @@
 - name: Restart prometheus
   listen: "restart prometheus"
   become: true
+  ignore_errors: "{{ ansible_check_mode }}"  
   ansible.builtin.systemd:
     daemon_reload: true
     name: prometheus
@@ -11,6 +12,7 @@
 - name: Reload prometheus
   listen: "reload prometheus"
   become: true
+  ignore_errors: "{{ ansible_check_mode }}"  
   ansible.builtin.systemd:
     name: prometheus
     state: reloaded

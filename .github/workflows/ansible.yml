@@ -1,4 +1,4 @@
-name: 'Deploy WP'
+name: 'Test WP'
 on:
   push:
     branches: [ "main" ]
@@ -8,37 +8,8 @@ permissions:
   contents: read
 
 jobs:
-  ansible:
-    name: Run Ansible playbook
-    runs-on: ubuntu-latest
-    environment: FINAL_PROJECT
-    steps:
-      - name: test ansible
-        uses: dawidd6/action-ansible-playbook@v2.8.0
-        with:
-          playbook: playbooks/healthmonitor.yml
-          directory: ./ANSIBLE/
-          # configuration: |
-          #   [defaults]
-          #   nocows = true
-          #   callbacks_enabled = ansible.posix.profile_tasks, ansible.posix.timer
-          #   stdout_callback = yaml
-          # Optional, SSH private key
-          key: ${{secrets.SSH_PRIVATE_KEY}}
-          known_hosts: |
-            example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-          # Optional, encrypted vault password
-          vault_password: ${{secrets.VAULT_PASSWORD}}
-          # Optional, galaxy requirements filepath
-          # requirements: galaxy-requirements.yml
-          # Optional, additional flags to pass to ansible-playbook
-          options: |
-            --inventory inventory/
-            --verbose
-            -C
-
-  terraform:
-    name: 'Terraform'
+  terraform_setup:
+    name: 'Terraform Init and Syntax check'
     runs-on: ubuntu-latest
     environment: FINAL_PROJECT
     env:
@@ -95,12 +66,86 @@ jobs:
     - name: Terraform Format
       run: cd TERRAFORM && terraform fmt -check
 
-    # Generates an execution plan for Terraform
-    - name: Terraform Plan
-      run: cd TERRAFORM && terraform plan -input=false
+  terraform_apply:
+    name: "Deploy infra to proceed with tests"
+    runs-on: ubuntu-latest
+    environment: FINAL_PROJECT
+    env:
+      ACCESS_KEY:  ${{ secrets.AWS_ACCESS_KEY }}
+      SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      REGION: ${{ vars.AWS_REGION }}
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Set tfvars file
+        run: |
+          echo "${{ secrets.TFVARS }}" > TERRAFORM/terraform.tfvars
+          
+      - name: Set backend.tf
+        run: |
+          cat > TERRAFORM/backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket  = "${{ vars.S3_TF_BUCKET }}"
+              key     = "terraform.tfstate"
+              encrypt = true
+              region  = "${REGION}"
+          
+              access_key = "${ACCESS_KEY}"
+              secret_key = "${SECRET_KEY}"
+
+            }
+          }
+          EOF
+          
+      - name: set up ssh
+        run: |
+          echo "${{ secrets.SSH_KEY  }}" > id_rsa
+          chmod  600 id_rsa
+      # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+      - name: Terraform Init
+        run: cd TERRAFORM && terraform init
+        # Generates an execution plan for Terraform
+      - name: Terraform Plan
+        run: cd TERRAFORM && terraform plan -input=false
 
       # On push to "main", build or change infrastructure according to Terraform configuration files
       # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: cd TERRAFORM && terraform apply -auto-approve -input=false
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: cd TERRAFORM && terraform apply -auto-approve -input=false
+
+  ansible_check_hm:
+    name: Run Ansible playbook
+    runs-on: ubuntu-latest
+    environment: FINAL_PROJECT
+    steps:
+      - name: test ansible
+        uses: dawidd6/action-ansible-playbook@v2.8.0
+        with:
+          playbook: playbooks/healthmonitor.yml
+          directory: ./ANSIBLE/
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # known_hosts: |
+          #   example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+          # Optional, encrypted vault password
+          vault_password: ${{secrets.VAULT_PASSWORD}}
+          # Optional, galaxy requirements filepath
+          requirements: requirements.yml
+          # Optional, additional flags to pass to ansible-playbook
+          options: |
+            --inventory inventory/
+            --verbose
+            -C        
+...        

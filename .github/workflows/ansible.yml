@@ -133,7 +133,7 @@ jobs:
       - name: test ansible
         uses: dawidd6/action-ansible-playbook@v2.8.0
         with:
-          playbook: ./ANSIBLE/playbooks/healthmonitor.yml
+          playbook: ./ANSIBLE/playbooks/health_monitor.yml
           # Optional, SSH private key
           key: ${{secrets.SSH_PRIVATE_KEY}}
           # known_hosts: |

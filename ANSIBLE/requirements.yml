@@ -1,0 +1,9 @@
+collections:
+  - name: amazon.aws
+  - name: community.general
+  - name: ansible.posix
+  - name: cloud.terraform
+  - name: community.crypto
+  - name: community.docker
+  - name: prometheus.prometheus
+  - name: community.grafana

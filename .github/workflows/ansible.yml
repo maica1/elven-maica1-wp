@@ -87,4 +87,8 @@ jobs:
             --inventory inventory/
             -vv
             -C
-...
+      - name: test inventory parsing
+        run: |
+          cd ANSIBLE &&
+          ansible-inventory -i inventory/inventory.yml --list -y -vv
+            ...

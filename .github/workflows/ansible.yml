@@ -130,10 +130,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: FINAL_PROJECT
     steps:
-
-      - name: debug
-        run: pwd && ls -ltR
-
       - name: Checkout
         uses: actions/checkout@v3
 
@@ -150,7 +146,7 @@ jobs:
           # known_hosts: |
           #   example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
           # Optional, encrypted vault password
-          vault_password: ${{secrets.VAULT_PASSWORD}}
+          vault_password: ${{secrets.ANSIBLE_VAULT_PASSWORD}}
           # Optional, galaxy requirements filepath
           requirements: requirements.yml
           # Optional, additional flags to pass to ansible-playbook

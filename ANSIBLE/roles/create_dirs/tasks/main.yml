@@ -1,7 +1,7 @@
 ---
 # tasks file for create_dirs
 # TODO: Revisit this task ant test it against check mode from scratch
-- name: Create dir
+- name: "Create dirs {{ ansible_loop.allitems }}"
   # check_mode: false 
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
@@ -13,3 +13,4 @@
   loop: "{{ DIRS | default(['/tmp/temp']) }}"
   loop_control:
     loop_var: directory
+    extended: true

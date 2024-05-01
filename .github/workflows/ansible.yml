@@ -131,8 +131,14 @@ jobs:
     environment: FINAL_PROJECT
     steps:
 
+      - name: debug
+        run: pwd && ls -ltR
+        
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: debug
+        run: pwd && ls -ltR
 
       - name: test ansible
         uses: dawidd6/action-ansible-playbook@v2.8.0

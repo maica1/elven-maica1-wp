@@ -2,6 +2,7 @@
 - name: Restart blackbox_exporter
   listen: "restart blackbox_exporter"
   become: true
+  ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.systemd:
     daemon_reload: true
     name: blackbox_exporter
@@ -9,6 +10,7 @@
   register: blackbox_exporter_restarted
 
 - name: Reload blackbox_exporter
+  ignore_errors: "{{ ansible_check_mode }}"
   listen: "reload blackbox_exporter"
   become: true
   ansible.builtin.systemd:

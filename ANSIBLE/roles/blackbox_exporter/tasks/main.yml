@@ -34,6 +34,7 @@
 
 - name: Ensure blackbox_exporter service is started and enabled
   become: true
+  ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.systemd:
     daemon_reload: true
     name: blackbox_exporter

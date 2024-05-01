@@ -64,6 +64,11 @@ jobs:
           terraform init &&
           terraform show
 
+      - name: test inventory parsing
+        run: |
+          cd ANSIBLE &&
+          ansible-inventory -i inventory/inventory.yml --list -y -vv
+
       - name: Run hm playbook on check_mode
         uses: dawidd6/action-ansible-playbook@v2.8.0
         with:

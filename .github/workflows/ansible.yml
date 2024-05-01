@@ -17,10 +17,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Set backend.tf
+        run: |
+          cat > TERRAFORM/backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket  = "${{ vars.S3_TF_BUCKET }}"
+              key     = "terraform.tfstate"
+              encrypt = true
+              region  = "${REGION}"
+
+              access_key = "${ACCESS_KEY}"
+              secret_key = "${SECRET_KEY}"
+
+            }
+          }
+          EOF
+
       - name: Init terraform
         run: |
           cd TERRAFORM &&

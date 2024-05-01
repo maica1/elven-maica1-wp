@@ -148,7 +148,7 @@ jobs:
           requirements: requirements.yml
           # Optional, additional flags to pass to ansible-playbook
           options: |
-            --inventory ./ANSIBLE/inventory/
-            --verbose
+            --inventory inventory/
+            --vv
             -C        
 ...        

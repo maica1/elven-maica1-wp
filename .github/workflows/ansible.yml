@@ -31,7 +31,7 @@ jobs:
         id: cache-virtualenv
         with:
           requirement_files: ./ANSIBLE/requirements.txt
-          custom_virtualenv_dir: ./ANSIBLE/.ansible_venv
+          custom_virtualenv_dir: .ansible_venv
 
       - run: pip install -r ./ANSIBLE/requirements.txt
         if: steps.cache-virtualenv.outputs.cache-hit != 'true'

@@ -18,7 +18,6 @@ jobs:
       ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
       SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
       REGION: ${{ vars.AWS_REGION }}
-      PY_VERSION: ${{ vars.python_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -26,7 +25,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v5
         with:
-          python-version: ${PY_VERSION}
+          python-version:  ${{ vars.PYTHON_VERSION }}
           # python-version: '3.11'
 
       - uses: syphar/restore-virtualenv@v1

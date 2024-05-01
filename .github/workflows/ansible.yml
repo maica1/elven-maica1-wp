@@ -41,9 +41,12 @@ jobs:
           EOF
 
       - name: Init terraform
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
         run: |
           cd TERRAFORM &&
           terraform init
+
       - name: Run hm playbook on check_mode
         uses: dawidd6/action-ansible-playbook@v2.8.0
         with:

@@ -61,7 +61,8 @@ jobs:
       - name: Init terraform
         run: |
           cd TERRAFORM &&
-          terraform init
+          terraform init &&
+          terraform show
 
       - name: Run hm playbook on check_mode
         uses: dawidd6/action-ansible-playbook@v2.8.0

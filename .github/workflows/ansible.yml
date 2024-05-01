@@ -25,7 +25,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9.5'
+          python-version: ${{ vars.python_version }}
           # python-version: '3.11'
 
       - uses: syphar/restore-virtualenv@v1

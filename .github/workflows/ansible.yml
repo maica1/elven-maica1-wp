@@ -14,6 +14,10 @@ jobs:
     name: Run Ansible playbook
     runs-on: ubuntu-latest
     environment: FINAL_PROJECT
+    env:
+      ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+      SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      REGION: ${{ vars.AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -41,8 +45,6 @@ jobs:
           EOF
 
       - name: Init terraform
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
         run: |
           cd TERRAFORM &&
           terraform init

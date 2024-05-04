@@ -25,9 +25,11 @@ jobs:
         run: pip install -r ./ANSIBLE/requirements.txt
         if: steps.cache-virtualenv.outputs.cache-hit != 'true'
       
-      - name: deploy vaul_password_file
+      - name: deploy vault_password_file
+        env:
+            VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
         run: |
-          echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
+          echo "${VAULT_PASSWORD}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
  
       - name: Run ansible-lint
         uses: ansible/ansible-lint@v6

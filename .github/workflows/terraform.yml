@@ -11,12 +11,12 @@ permissions:
 jobs:
   terraform:
     name: 'Terraform'
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.GH_RUNNER }}"
     environment: FINAL_PROJECT
     env:
-      ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-      SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
-      REGION: ${{ vars.AWS_REGION }}
+      ACCESS_KEY: "${{ secrets.AWS_ACCESS_KEY }}"
+      SECRET_KEY: "${{ secrets.AWS_SECRET_KEY }}"
+      REGION: "${{ vars.AWS_REGION }}"
 
     defaults:
       run:
@@ -30,7 +30,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          cli_config_credentials_token: "${{ secrets.TF_API_TOKEN }}"
 
       - name: Set tfvars file
         run: |

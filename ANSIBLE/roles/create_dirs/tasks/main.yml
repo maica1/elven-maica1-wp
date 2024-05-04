@@ -1,5 +1,5 @@
 ---
-- name: "Create dirs"
+- name: Create dirs
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
     path: "{{ directory }}"

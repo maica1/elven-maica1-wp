@@ -9,7 +9,7 @@
     prometheus_data_dir: /opt/prometheus/
     node_exporter_version: "v1.7.0"
     install_docker: true
-    PACKAGE_LIST:
+    package_list:
     - docker
   vars_files:
     - ../vault/aws_credentials.yml
@@ -20,16 +20,16 @@
   roles:
     - role: create_dirs
       vars: 
-        DIRS: [/var/lib/prometheus/, "{{ prometheus_data_dir}}","{{ prometheus_data_dir}}compose" ]
-        GROUP: "{{ ansible_user }}"
-        USER:  65534
-        MODE: '764'
+        dirs: [/var/lib/prometheus/, "{{ prometheus_data_dir}}","{{ prometheus_data_dir}}compose" ]
+        group: "{{ ansible_user }}"
+        user:  65534
+        mode: '764'
     - role: create_dirs
       vars: 
-        DIRS: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
-        USER: "{{ ansible_user }}"
-        GROUP: "adm"
-        MODE: '774'
+        dirs: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
+        user: "{{ ansible_user }}"
+        group: "adm"
+        mode: '774'
     - install_packages
 
 
@@ -91,7 +91,7 @@
         ds_type: prometheus
         ds_url: "http://{{ ansible_ec2_public_hostname }}:9090"
         grafana_url: "http://{{ ansible_ec2_public_hostname }}:3000"
-        grafana_user: "{{ GRAFANA_ADMIN_USER }}"
+        grafana_user: "{{ GRAFANA_ADMIN_user }}"
         grafana_password: "{{ GRAFANA_ADMIN_PASSWORD }}"
         access: proxy
         is_default: yes
@@ -104,7 +104,7 @@
         grafana_url: "http://{{ ansible_ec2_public_hostname }}:3000"
         dashboard_id: "{{ item }}"
         commit_message: Updated by ansible
-        grafana_user: "{{ GRAFANA_ADMIN_USER }}"
+        grafana_user: "{{ GRAFANA_ADMIN_user }}"
         grafana_password: "{{ GRAFANA_ADMIN_PASSWORD }}"
         overwrite: yes
         state: present
@@ -116,7 +116,7 @@
   vars:
     node_exporter_version: "1.7.0"
     install_docker: true
-    PACKAGE_LIST:
+    package_list:
       - docker
   vars_files:
     - ../vault/aws_credentials.yml
@@ -124,10 +124,10 @@
   roles:
     - role: create_dirs
       vars: 
-        DIRS: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
-        USER: "{{ ansible_user }}"
-        GROUP: "adm"
-        MODE: '774'
+        dirs: [.docker/cli-plugins/,/usr/local/lib/docker/cli-plugins/]
+        user: "{{ ansible_user }}"
+        group: "adm"
+        mode: '774'
     - install_packages
     - blackbox_exporter
     - nginx_exporter

@@ -26,15 +26,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version:  "${{ vars.PYTHON_VERSION }}"
-          # python-version: '3.11'
 
-      - uses: syphar/restore-virtualenv@v1
+      - name: Setup venv from cache
+        uses: syphar/restore-virtualenv@v1
         id: cache-virtualenv
         with:
           requirement_files: ./ANSIBLE/requirements.txt
           custom_virtualenv_dir: .ansible_venv
 
-      - run: pip install -r ./ANSIBLE/requirements.txt
+      - name: Install ansible venv requirements 
+        run: pip install -r ./ANSIBLE/requirements.txt
         if: steps.cache-virtualenv.outputs.cache-hit != 'true'
 
       - name: Setup Terraform

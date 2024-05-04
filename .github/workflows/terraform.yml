@@ -80,5 +80,5 @@ jobs:
 
       - name: Destroy infra after create
         if: github.ref != 'refs/heads/main' && github.event_name == 'push'
-        run: cd TERRAFORM && terrform plan -destroy -out tf_plan && terraform apply tf_plan -auto-approve
+        run: cd TERRAFORM && terraform plan -destroy -out tf_plan && terraform apply tf_plan -auto-approve
 ...

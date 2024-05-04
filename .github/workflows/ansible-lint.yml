@@ -9,5 +9,25 @@ jobs:
     runs-on: "${{ vars.GH_RUNNER }}"
     steps:
       - uses: actions/checkout@v4
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version:  "${{ vars.PYTHON_VERSION }}"
+
+      - name: Setup venv from cache
+        uses: syphar/restore-virtualenv@v1
+        id: cache-virtualenv
+        with:
+          requirement_files: ./ANSIBLE/requirements.txt
+          custom_virtualenv_dir: .ansible_venv
+
+      - name: Install ansible venv requirements 
+        run: pip install -r ./ANSIBLE/requirements.txt
+        if: steps.cache-virtualenv.outputs.cache-hit != 'true'
+      
+      - name: deploy vaul_password_file
+        run: |
+          echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
+ 
       - name: Run ansible-lint
         uses: ansible/ansible-lint@v6

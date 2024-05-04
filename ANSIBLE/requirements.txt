@@ -1,4 +1,4 @@
-ansible_lint
+ansible_lint==6.22.2
 ansible-dev-tools
 boto3>=1.26.0
 botocore>=1.29.0

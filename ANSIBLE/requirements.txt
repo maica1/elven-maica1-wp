@@ -1,5 +1,5 @@
 ansible_lint==6.22.2
-ansible-dev-tools=0.1.4
+ansible-dev-tools==0.1.4
 boto3>=1.26.0
 botocore>=1.29.0
 cryptography>1.5

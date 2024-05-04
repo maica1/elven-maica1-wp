@@ -28,6 +28,7 @@ jobs:
       - name: deploy vault_password_file
         env:
             VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
+            ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
         run: |
           echo "${VAULT_PASSWORD}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
  

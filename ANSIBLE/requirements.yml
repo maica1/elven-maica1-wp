@@ -1,9 +1,17 @@
 collections:
   - name: amazon.aws
+    version: "7.3.0"
   - name: community.general
+    version: "8.3.0"
   - name: ansible.posix
+    version: "1.5.4"
   - name: cloud.terraform
+    version: "2.0.0"
   - name: community.crypto
+    version: "2.19.0"
   - name: community.docker
+    version: "3.9.0"
   - name: prometheus.prometheus
+    version: "0.16.3"
   - name: community.grafana
+    version: "1.8.0"

@@ -9,6 +9,7 @@ jobs:
     runs-on: "${{ vars.GH_RUNNER }}"
     env:
         ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
+        python-version:  "${{ vars.PYTHON_VERSION }}"
     steps:
       - uses: actions/checkout@v4
       - name: setup python
@@ -38,3 +39,4 @@ jobs:
  
       - name: Run ansible-lint
         uses: ansible/ansible-lint@v6
+            

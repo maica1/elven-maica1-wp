@@ -107,5 +107,5 @@ jobs:
           ANSIBLE_VAULT_PASSWORD_FILE=./key ansible-vault view vault/aws_credentials.yml
           echo " PREVIEW OF collections"
           ansible-galaxy collection list
-          ansible-inventory -i inventory/ --list -y -vv
+          ansible-inventory -i inventory/ --list -y -vv --vault-password-file=./key
 ...

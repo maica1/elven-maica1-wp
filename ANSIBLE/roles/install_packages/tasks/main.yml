@@ -1,11 +1,11 @@
 ---
 # tasks file for install_packages
-- name: Repo based installation tasks
+- name: "{{ ansible_play_name }}:: Repo based installation tasks"
   ansible.builtin.include_tasks: install_linux_packages.yml
 
-- name: Repo based installation tasks
+- name: "{{ ansible_play_name }}:: docker installation steps"
   ansible.builtin.include_tasks: install_docker.yml
   when: install_docker is defined
 
-- name: Flush handlers
+- name: "{{ ansible_play_name }}:: Flush handlers"
   ansible.builtin.meta: flush_handlers

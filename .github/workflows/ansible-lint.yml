@@ -1,0 +1,42 @@
+# .github/workflows/ansible-lint.yml
+name: ansible-lint
+on:
+  pull_request:
+    branches: ["main","stable", "release/v*"]
+jobs:
+  build:
+    name: Ansible Lint # Naming the build is important to use it as a status check
+    runs-on: "${{ vars.GH_RUNNER }}"
+    env:
+        ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
+        python-version:  "${{ vars.PYTHON_VERSION }}"
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version:  "${{ vars.PYTHON_VERSION }}"
+
+      - name: Setup venv from cache
+        uses: syphar/restore-virtualenv@v1
+        id: cache-virtualenv
+        with:
+          requirement_files: ./ANSIBLE/requirements.txt
+          custom_virtualenv_dir: .ansible_venv
+
+      - name: Install ansible venv requirements
+        run: pip install -r ./ANSIBLE/requirements.txt
+        if: steps.cache-virtualenv.outputs.cache-hit != 'true'
+        
+      - name: Install ansible galaxy requirements
+        run: cd ANSIBLE && ansible-galaxy install -r requirements.yml
+
+      - name: deploy vault_password_file
+        env:
+            VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
+        run: |
+          echo "${VAULT_PASSWORD}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
+ 
+      - name: Run ansible-lint
+        uses: ansible/ansible-lint@v6
+            

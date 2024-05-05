@@ -1,8 +1,9 @@
 ---
 - name: Restart systemd_exporter
+  become: true
+  listen: restart systemd_exporter
+  ignore_errors: "{{ ansible_check_mode }}"  
   ansible.builtin.systemd:
     daemon_reload: true
     name: systemd_exporter
     state: restarted
-  become: true
-  listen: restart systemd_exporter

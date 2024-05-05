@@ -1,8 +1,5 @@
 ---
-# tasks file for create_dirs
-# TODO: Revisit this task ant test it against check mode from scratch
-- name: Create dir
-  # check_mode: false 
+- name: Create dirs
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
     path: "{{ directory }}"

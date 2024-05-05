@@ -21,10 +21,13 @@ jobs:
           requirement_files: ./ANSIBLE/requirements.txt
           custom_virtualenv_dir: .ansible_venv
 
-      - name: Install ansible venv requirements 
+      - name: Install ansible venv requirements
         run: pip install -r ./ANSIBLE/requirements.txt
         if: steps.cache-virtualenv.outputs.cache-hit != 'true'
-      
+        
+      - name: Install ansible galaxy requirements
+        run: cd ANSIBLE && ansible-galaxy install -r requirements.yml
+
       - name: deploy vault_password_file
         env:
             VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"

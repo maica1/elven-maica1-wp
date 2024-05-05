@@ -91,6 +91,14 @@ jobs:
             -C
       - name: test inventory parsing
         run: |
-          cd ANSIBLE &&
+          echo " PREVIEW OF AWS_RDS INVENTORY"
+          cat /home/runner/work/elven-maica1-wp/elven-maica1-wp/ANSIBLE/inventory/aws_rds.yml
+          echo " PREVIEW OF TERRAFORM INVENTORY"
+          cat /home/runner/work/elven-maica1-wp/elven-maica1-wp/ANSIBLE/inventory/inventory.yml
+          echo " PREVIEW OF vault"
+          cd ANSIBLE
+          ANSIBLE_VAULT_PASSWORD_FILE=./key ansible-vault view vault/aws_credentials.yml
+          echo " PREVIEW OF collections"
+          ansible-galaxy collection list
           ansible-inventory -i inventory/ --list -y -vv
 ...

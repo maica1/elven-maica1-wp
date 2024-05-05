@@ -7,6 +7,8 @@ jobs:
   build:
     name: Ansible Lint # Naming the build is important to use it as a status check
     runs-on: "${{ vars.GH_RUNNER }}"
+    env:
+        ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
     steps:
       - uses: actions/checkout@v4
       - name: setup python
@@ -31,7 +33,6 @@ jobs:
       - name: deploy vault_password_file
         env:
             VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
-            ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
         run: |
           echo "${VAULT_PASSWORD}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
  

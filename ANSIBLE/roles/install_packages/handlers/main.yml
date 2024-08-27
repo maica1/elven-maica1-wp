@@ -6,3 +6,4 @@
     name: nginx
     state: started
   when: "'nginx' in PACKAGE_LIST "
+...

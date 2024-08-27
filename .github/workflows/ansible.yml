@@ -1,0 +1,114 @@
+---
+name: "Test WP"
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+
+  ansible_check_hm:
+    name: Run Ansible playbook
+    runs-on: "${{ vars.GH_RUNNER }}"
+    environment: FINAL_PROJECT
+    env:
+      ACCESS_KEY: "${{ secrets.AWS_ACCESS_KEY }}"
+      SECRET_KEY: "${{ secrets.AWS_SECRET_KEY }}"
+      REGION: "${{ vars.AWS_REGION }}"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version:  "${{ vars.PYTHON_VERSION }}"
+
+      - name: Setup venv from cache
+        uses: syphar/restore-virtualenv@v1
+        id: cache-virtualenv
+        with:
+          requirement_files: ./ANSIBLE/requirements.txt
+          custom_virtualenv_dir: .ansible_venv
+
+      - name: Install ansible venv requirements 
+        run: pip install -r ./ANSIBLE/requirements.txt
+        if: steps.cache-virtualenv.outputs.cache-hit != 'true'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: "${{ secrets.TF_API_TOKEN }}"
+
+      - name: Set backend.tf
+        run: |
+          cat > TERRAFORM/backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket  = "${{ vars.S3_TF_BUCKET }}"
+              key     = "terraform.tfstate"
+              encrypt = true
+              region  = "${REGION}"
+
+              access_key = "${ACCESS_KEY}"
+              secret_key = "${SECRET_KEY}"
+
+            }
+          }
+          EOF
+
+      - name: Init terraform
+        run: |
+          cd TERRAFORM &&
+          terraform init &&
+          terraform show
+
+      # - name: test inventory parsing
+      #   run: |
+      #     cd ANSIBLE &&
+      #     ansible-inventory -i inventory/inventory.yml --list -y -vv
+
+      - name: Run hm playbook on check_mode
+        uses: dawidd6/action-ansible-playbook@v2.8.0
+        with:
+          playbook: playbooks/health_monitor.yml
+          directory: ./ANSIBLE/
+          # Optional, SSH private key
+          key: "${{ secrets.SSH_KEY }}"
+          # known_hosts: |
+          #   example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+          # Optional, encrypted vault password
+          vault_password: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
+          # Optional, galaxy requirements filepath
+          requirements: requirements.yml
+          # Optional, additional flags to pass to ansible-playbook
+          options: |
+            --inventory inventory/
+            -vv
+            -C
+      - name: deploy vault_password_file
+        env:
+            VAULT_PASSWORD: "${{ secrets.ANSIBLE_VAULT_PASSWORD }}"
+            ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
+        run: |
+          cd ANSIBLE && echo "${VAULT_PASSWORD}" > "${ANSIBLE_VAULT_PASSWORD_FILE}"
+
+      - name: test inventory parsing
+        env:
+          ANSIBLE_VAULT_PASSWORD_FILE: "${{ vars.ANSIBLE_VAULT_PASSWORD_FILE }}"
+        run: |
+          echo " PREVIEW OF AWS_RDS INVENTORY"
+          cat /home/runner/work/elven-maica1-wp/elven-maica1-wp/ANSIBLE/inventory/aws_rds.yml
+          echo " PREVIEW OF TERRAFORM INVENTORY"
+          cat /home/runner/work/elven-maica1-wp/elven-maica1-wp/ANSIBLE/inventory/inventory.yml
+          echo " PREVIEW OF vault"
+          cd ANSIBLE
+          ANSIBLE_VAULT_PASSWORD_FILE=./key ansible-vault view vault/aws_credentials.yml
+          echo " PREVIEW OF collections"
+          ansible-galaxy collection list
+          ansible-inventory -i inventory/ --list -y -vv --vault-password-file=./key
+...

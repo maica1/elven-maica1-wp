@@ -1,27 +1,27 @@
 ---
 - name: Prepare authenticator options for apache
   ansible.builtin.set_fact:
-    letsencrypt_opt_http_auth: "--apache"
+    letsencrypt_opt_http_auth: --apache
   when: letsencrypt_cert.http_auth|default(letsencrypt_http_auth) == 'apache'
 
 - name: Prepare authenticator options for nginx
   ansible.builtin.set_fact:
-    letsencrypt_opt_http_auth: "--nginx"
+    letsencrypt_opt_http_auth: --nginx
   when: letsencrypt_cert.http_auth|default(letsencrypt_http_auth) == 'nginx'
 
 - name: Prepare authenticator options for standalone
   ansible.builtin.set_fact:
-    letsencrypt_opt_http_auth: "--standalone"
+    letsencrypt_opt_http_auth: --standalone
   when: letsencrypt_cert.http_auth|default(letsencrypt_http_auth) == 'standalone'
 
 - name: Prepare authenticator options for webroot
   ansible.builtin.set_fact:
-    letsencrypt_opt_http_auth: "--webroot --webroot-path {{ letsencrypt_cert.webroot_path | default(letsencrypt_webroot_path) }}"
+    letsencrypt_opt_http_auth: --webroot --webroot-path {{ letsencrypt_cert.webroot_path | default(letsencrypt_webroot_path) }}
   when: letsencrypt_cert.http_auth | default(letsencrypt_http_auth) == 'webroot'
 
 - name: Prepare cert name option
   ansible.builtin.set_fact:
-    letsencrypt_opt_cert_name: "--cert-name {{ letsencrypt_cert.name }}"
+    letsencrypt_opt_cert_name: --cert-name {{ letsencrypt_cert.name }}
   when: letsencrypt_cert.name | default()
 
 - name: Prepare optional test cert option
@@ -38,12 +38,12 @@
 
 - name: "Prepare post-hook options #1"
   ansible.builtin.set_fact:
-    letsencrypt_opt_post_hook: "--post-hook '{{ letsencrypt_cert.post_hook }}'"
+    letsencrypt_opt_post_hook: --post-hook '{{ letsencrypt_cert.post_hook }}'
   when: letsencrypt_cert.post_hook|default()
 
 - name: "Prepare post-hook options #2"
   ansible.builtin.set_fact:
-    letsencrypt_opt_post_hook: "--post-hook 'systemctl restart {{ letsencrypt_cert.services | join('') }}'"
+    letsencrypt_opt_post_hook: --post-hook 'systemctl restart {{ letsencrypt_cert.services | join('') }}'
   when:
     - not letsencrypt_cert.post_hook | default()
     - letsencrypt_cert.services | default()
@@ -52,21 +52,21 @@
 
 - name: "Prepare deploy-hook options #1"
   ansible.builtin.set_fact:
-    letsencrypt_opt_deploy_hook: "--deploy-hook '{{ letsencrypt_cert.deploy_hook }}'"
+    letsencrypt_opt_deploy_hook: --deploy-hook '{{ letsencrypt_cert.deploy_hook }}'
   when: letsencrypt_cert.deploy_hook|default()
 
 - name: "Prepare deploy-hook options #2"
   ansible.builtin.set_fact:
-    letsencrypt_opt_deploy_hook: "--deploy-hook 'systemctl restart {{ letsencrypt_cert.services | join('') }}'"
+    letsencrypt_opt_deploy_hook: --deploy-hook 'systemctl restart {{ letsencrypt_cert.services | join('') }}'
   when:
     - not letsencrypt_cert.deploy_hook | default()
     - letsencrypt_cert.services | default()
     - not letsencrypt_cert_use_post_hook_for_service_restart | default(True)
     - letsencrypt_cert_use_deploy_hook_for_service_restart | default(False)
 
-- name: "Prepare renew-hook options"
+- name: Prepare renew-hook options
   ansible.builtin.set_fact:
-    letsencrypt_opt_renew_hook: "--renew-hook '{{ letsencrypt_cert.renew_hook }}'"
+    letsencrypt_opt_renew_hook: --renew-hook '{{ letsencrypt_cert.renew_hook }}'
   when: letsencrypt_cert.renew_hook|default()
 
 - name: Create webroot directory
@@ -120,13 +120,13 @@
 - name: Read in system users
   ansible.builtin.command: "cut -d: -f1 /etc/passwd"
   register: letsencrypt_reg_system_users
-  changed_when: False
+  changed_when: false
 
 - name: Add users to letsencrypt system group
   ansible.builtin.user:
     name: "{{ item }}"
     groups: letsencrypt
-    append: yes
+    append: true
   with_items: "{{ letsencrypt_cert.users | default([]) }}"
   when: letsencrypt_cert.users | default() and item in letsencrypt_reg_system_users.stdout_lines | default([])
 
@@ -146,4 +146,5 @@
         path: "{{ privkey.dest }}"
         owner: root
         group: letsencrypt
-        mode: 0640
+        mode: "0640"
+...

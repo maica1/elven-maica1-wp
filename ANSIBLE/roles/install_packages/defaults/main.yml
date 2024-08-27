@@ -1,4 +1,4 @@
 ---
 # defaults file for install_packages
-PACKAGE_LIST:
-- vim
+package_list:
+  - vim

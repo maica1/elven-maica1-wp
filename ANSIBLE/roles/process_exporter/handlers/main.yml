@@ -2,6 +2,7 @@
 - name: Restart process_exporter
   listen: "restart process_exporter"
   become: true
+  ignore_errors: "{{ ansible_check_mode }}"  
   ansible.builtin.systemd:
     daemon_reload: true
     name: process_exporter

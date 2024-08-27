@@ -41,7 +41,7 @@ services:
     environment:
       GF_DEFAULT_FORCE_MIGRATION: true
       GF_DISABLE_INITIAL_ADMIN_CREATION: true
-      GF_SECURITY_ADMIN_USER: {{ GRAFANA_ADMIN_USER | default('admin')}}
+      GF_SECURITY_ADMIN_user: {{ GRAFANA_ADMIN_user | default('admin')}}
       GF_SECURITY_ADMIN_PASSWORD: {{ GRAFANA_ADMIN_PASSWORD | default('customer')}}
     restart: always
     volumes:

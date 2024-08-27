@@ -1,5 +1,6 @@
 ---
-# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker prometheus.prometheus community.grafana
+# ansible-galaxy collection install amazon.aws community.general ansible.posix community.crypto.acme_certificate cloud.terraform  community.docker \
+# prometheus.prometheus community.grafana
 # ansible-galaxy role install  systemli.letsencrypt
 ###############################################################################################
 - name: ">>> INSTALL WORDPRESS BLOG <<<"
@@ -8,9 +9,9 @@
 
   vars:
     elasticache_instance_name: wordpress-memcached
-    LOG_DIR: /var/log/nginx/
-    DOMAIN: maica1.site
-    PACKAGE_LIST:
+    log_dir: /var/log/nginx/
+    domain: maica1.site
+    package_list:
       - gcc
       - nginx
       - php
@@ -25,17 +26,17 @@
       - cyrus-sasl-devel
       - libevent-devel
       - amazon-efs-utils
-    ROOT_DIR: /var/www/html/blog/
+    root_dir: /var/www/html/blog/
   vars_files:
     - ../vault/aws_credentials.yml
     #   - php-pecl-memcache amazon-linux-extras enable php8.1 memcached1.5
   roles:
     - { role: install_packages }
-    - { role: create_dirs, DIRS: [ "/uploads", "{{ LOG_DIR }}", "{{ ROOT_DIR }}"], USER: 'nginx', GROUP: 'nginx', MODE: '0744'}
-    - { role: systemli.letsencrypt, letsencrypt_cert: { name: "{{ ansible_hostname }}", domains: ["{{ ansible_hostname }}.{{ DOMAIN }}"], challenge: http, http_auth: nginx, services: nginx }, letsencrypt_account_email: 'test@test.com.br' }
+    - { role: create_dirs, dirs: [ "/uploads", "{{ log_dir }}", "{{ root_dir }}"], user: 'nginx', group: 'nginx', mode: '0744'}
+    - { role: systemli.letsencrypt, letsencrypt_cert: { name: "{{ ansible_hostname }}", domains: ["{{ ansible_hostname }}.{{ domain }}"], challenge: http, http_auth: nginx, services: nginx }, letsencrypt_account_email: 'test@test.com.br' }
     # TODO: Automate email via var
   pre_tasks:
-    - name: gather ec2_info
+    - name: Gather ec2_info
       amazon.aws.ec2_metadata_facts:
 
     - name: Download mysql repo
@@ -51,38 +52,37 @@
         state: present
         key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 
-    - name: add mysql repo
+    - name: Add mysql repo
       check_mode: false
       ansible.builtin.yum:
         name: /tmp/mysql57-community-release-el7-11.noarch.rpm
         update_cache: true
-        disable_gpg_check: yes
+        disable_gpg_check: true
         state: present
       become: true
 
   tasks:
-
     - name: Create blog.conf file
       ansible.builtin.template: &nginx_permission
         src: blog.conf.j2
         dest: /etc/nginx/conf.d/blog.conf
         owner: nginx
         group: nginx
-        mode: 0744
+        mode: "0744"
 
     - name: Create a symbolic link
       tags: norun
       ansible.builtin.file:
         <<: *nginx_permission
         src: /uploads
-        dest: "{{ ROOT_DIR }}/uploads"
+        dest: "{{ root_dir }}/uploads"
         state: link
 
     - name: Create index file
       ansible.builtin.template:
         <<: *nginx_permission
         src: index.html.j2
-        dest: "{{ ROOT_DIR }}/hello_world.html"
+        dest: "{{ root_dir }}/hello_world.html"
 
     - name: Substitute user and group on php config
       ignore_errors: "{{ ansible_check_mode }}"
@@ -91,30 +91,30 @@
         regexp: "{{ item }} =.*"
         line: "{{ item }} = nginx"
       loop:
-      - user
-      - group
+        - user
+        - group
 
-    - name: download and extract wordpress
+    - name: Download and extract wordpress
       ignore_errors: "{{ ansible_check_mode }}"
       ansible.builtin.unarchive:
         <<: *nginx_permission
         src: https://br.wordpress.org/latest-pt_BR.tar.gz
         dest: /var/www/html/
         validate_certs: false
-        remote_src: yes
-        creates: "{{ ROOT_DIR }}/index.php"
+        remote_src: true
+        creates: "{{ root_dir }}/index.php"
       register: downloaded_wp
 
-    - name: rename wordpress dir
+    - name: Rename wordpress dir
       ignore_errors: "{{ ansible_check_mode }}"
       ansible.builtin.copy:
         <<: *nginx_permission
         src: /var/www/html/wordpress/
-        dest: "{{ ROOT_DIR }}"
-        remote_src: yes
+        dest: "{{ root_dir }}"
+        remote_src: true
       when: downloaded_wp is not skipped
 
-    - name: remove old wordpress dir
+    - name: Remove old wordpress dir
       ansible.builtin.file:
         path: /var/www/html/wordpress
         state: absent
@@ -124,22 +124,24 @@
       ignore_errors: "{{ ansible_check_mode }}"
       ansible.builtin.shell:
         cmd: |
+          set -o pipefail
           /usr/bin/yes 'no' | pecl install igbinary
           echo 'extension=igbinary.so' > /etc/php.d/30-igbinary.ini
 
           /usr/bin/yes 'no' | pecl install msgpack
           echo 'extension=msgpack.so' > /etc/php.d/30-msgpack.ini
-          /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
+          /usr/bin/yes 'no' | pecl install --configureoptions 'enable-memcached-igbinary="yes" enable-memcached-msgpack="yes" enable-memcached-json="yes" \
+          enable-memcached-protocol="yes" enable-memcached-sasl="yes" enable-memcached-session="yes"' memcached
           echo 'extension=memcached.so' > /etc/php.d/41-memcached.ini
 
     - name: Check if ElastiCache Cluster exists
       ansible.builtin.shell: >
-          aws elasticache describe-cache-clusters
-          --cache-cluster-id {{ elasticache_instance_name }}
-          --region {{ aws_credentials.region }} --profile blog-study  | grep 'Address' | cut -d: -f2 | tr -d ' ' | tr -d ','
+        set -o pipefail && aws elasticache describe-cache-clusters
+        --cache-cluster-id {{ elasticache_instance_name }}
+        --region {{ aws_credentials.region }} --profile blog-study  | grep 'Address' | cut -d: -f2 | tr -d ' ' | tr -d ','
       register: elasticache_cluster_address
       failed_when: "'CacheCluster not found:' in elasticache_cluster_address.stderr"
-      delegate_to:  localhost
+      delegate_to: localhost
       delegate_facts: false
       # ignore_errors: true
 
@@ -151,8 +153,8 @@
         line: "{{ item.0 }} = {{ item.1 }}"
         insertafter: "[Session]"
       loop:
-      - ["session.save_handler","memcached"]
-      - ["session.save_path", "{{ elasticache_cluster_address.stdout }}:11211"]
+        - [session.save_handler, memcached]
+        - [session.save_path, "{{ elasticache_cluster_address.stdout }}:11211"]
 
 
     - name: Start and enable services
@@ -162,8 +164,8 @@
         state: restarted
         enabled: true
       loop:
-      - nginx
-      - php-fpm
+        - nginx
+        - php-fpm
       loop_control:
         loop_var: package
 
@@ -173,14 +175,14 @@
 #   become: false
 
 #   vars:
-#     DOMAIN: "maica1.site"
+#     domain: "maica1.site"
 
 #   tasks:
 
 #   - name: Access homepage via purchased dns
 #     ignore_errors: "{{ ansible_check_mode }}"
 #     ansible.builtin.uri:
-#       url: "http://{{ hostvars[item]['ansible_hostname'] + '.' + DOMAIN }}/hello_world.html"
+#       url: "http://{{ hostvars[item]['ansible_hostname'] + '.' + domain }}/hello_world.html"
 #     register: access
 #     until: "access.status == 200"
 #     retries: 10
@@ -207,25 +209,25 @@
     - ../vault/aws_credentials.yml
 
   tasks:
-  - name: Get all RDS instances
-    register: database_info
-    no_log: true
-    amazon.aws.rds_instance_info:
-      region: "{{ aws_credentials.region }}"
-      access_key: "{{ aws_credentials.accesskey }}"
-      secret_key: "{{ aws_credentials.secretkey }}"
+    - name: Get all RDS instances
+      register: database_info
+      no_log: true
+      amazon.aws.rds_instance_info:
+        region: "{{ aws_credentials.region }}"
+        access_key: "{{ aws_credentials.accesskey }}"
+        secret_key: "{{ aws_credentials.secretkey }}"
 
-  - name: Save db info
-    no_log: true
-    ansible.builtin.set_fact:
-      db_info: "{{ database_info }}"
+    - name: Save db info
+      no_log: true
+      ansible.builtin.set_fact:
+        db_info: "{{ database_info }}"
 ###############################################################################################
 - name: ">>> CONFIGURE WORDPRESS <<<"
   hosts: web_servers
   gather_facts: true
   vars:
-    ROOT_DIR: /var/www/html/blog
-    DOMAIN: maica1.site
+    root_dir: /var/www/html/blog
+    domain: maica1.site
   vars_files:
     - ../vault/aws_credentials.yml
   pre_tasks:
@@ -233,25 +235,27 @@
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/files/wp-cli.phar"
         dest: /usr/local/bin/wp
-        mode: '755'
+        mode: "0755"
     - name: Register salt for config file
       # no_log: true
-      ansible.builtin.uri: 
+      ansible.builtin.uri:
         url: https://api.wordpress.org/secret-key/1.1/salt/
         return_content: true
       register: salt
   tasks:
-
     - name: Create wp config file
       ansible.builtin.template:
         <<: *nginx_permission
         src: wp-config.php.j2
-        dest: "{{ ROOT_DIR }}/wp-config.php"
-        
+        dest: "{{ root_dir }}/wp-config.php"
+
     - name: Install wordpress blog
-      become_user: nginx
+      become_user: nginx # noqa: partial-become
+      become: true
       throttle: 1
       ansible.builtin.command:
-        chdir: "{{ ROOT_DIR }}"
-        cmd: wp core install --url={{ ansible_hostname + '.' + DOMAIN}} --title="Desafio final elvenworks" --admin_user={{ wp_admin_password }} --admin_password={{ wp_admin_password }} --admin_email=test@test.com
-
+        chdir: "{{ root_dir }}"
+        cmd: >
+          wp core install --url={{ ansible_hostname + '.' + domain }} --title="Desafio final elvenworks" --admin_user={{ wp_admin_password }} 
+          --admin_password={{ wp_admin_password }} --admin_email=test@test.com
+...

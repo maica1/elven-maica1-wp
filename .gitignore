@@ -43,3 +43,6 @@ ANSIBLE/vault/*.pem
 ANSIBLE/ansible.log
 TERRAFORM/backend.tf
 ANSIBLE/playbooks/files/wp-cli.phar
+id_rsa
+TERRAFORM/backend.tf
+.vscode/settings.json
